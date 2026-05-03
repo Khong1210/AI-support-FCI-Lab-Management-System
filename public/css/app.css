@@ -27,9 +27,8 @@ body {
 }
 
 .wrapper {
-    display: flex;
-    height: 100vh;
-    flex-direction: row;
+    min-height: 100vh;
+    display: block;
 }
 
 /* ============================================
@@ -37,8 +36,9 @@ body {
    ============================================ */
 
 .main-header {
-    display: none;
+    display: none !important;
 }
+
 
 .navbar-expand {
     display: flex;
@@ -95,10 +95,17 @@ body {
     left: 0;
     height: 100vh;
     overflow-y: auto;
-    z-index: 900;
+    z-index: 1000;
     transition: margin-left 0.3s ease;
     padding-top: 0;
 }
+
+.main-sidebar .brand-link {
+    position: sticky;
+    top: 0;
+    z-index: 1001;
+}
+
 
 .brand-link {
     display: block;
@@ -174,14 +181,16 @@ body {
 
 .content-wrapper {
     margin-left: 250px;
-    margin-top: 0;
-    height: 100vh;
+    min-height: 100vh;
     background: #ecf0f5;
-    flex: 1;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
+    position: relative;
 }
+
+.content {
+    padding: 1.5rem;
+}
+
 
 .content {
     padding: 1.5rem;
@@ -242,8 +251,8 @@ body {
     padding: 1rem;
     text-align: center;
     color: #666;
-    margin-left: 0;
-    margin-top: auto;
+    margin-left: 250px;
+    position: relative;
 }
 
 /* ============================================

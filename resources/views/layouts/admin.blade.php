@@ -49,7 +49,7 @@
 
                     <!-- Equipment -->
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="{{ url('/admin/equipment') }}" class="nav-link {{ request()->is('admin/equipment*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-desktop"></i>
                             <p>Equipment</p>
                         </a>
@@ -57,7 +57,7 @@
 
                     <!-- Software -->
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="{{ url('/admin/software') }}" class="nav-link {{ request()->is('admin/software*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-cube"></i>
                             <p>Software</p>
                         </a>
@@ -65,7 +65,7 @@
 
                     <!-- Laboratories -->
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="{{ url('/admin/laboratories') }}" class="nav-link {{ request()->is('admin/laboratories*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-flask-vial"></i>
                             <p>Laboratories</p>
                         </a>

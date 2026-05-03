@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\EquipmentController;
+use App\Http\Controllers\LaboratoryController;
+use App\Http\Controllers\SoftwareController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -8,9 +11,35 @@ Route::get('/', function () {
 });
 
 Route::get('/admin', [AdminController::class, 'dashboard']);
+
+// User management
 Route::get('/admin/users', [AdminController::class, 'users']);
 Route::get('/admin/users/create', [AdminController::class, 'createUser']);
 Route::post('/admin/users', [AdminController::class, 'storeUser']);
 Route::get('/admin/users/{user}/edit', [AdminController::class, 'editUser']);
 Route::put('/admin/users/{user}', [AdminController::class, 'updateUser']);
 Route::delete('/admin/users/{user}', [AdminController::class, 'destroyUser']);
+
+// Laboratory management
+Route::get('/admin/laboratories', [LaboratoryController::class, 'index']);
+Route::get('/admin/laboratories/create', [LaboratoryController::class, 'create']);
+Route::post('/admin/laboratories', [LaboratoryController::class, 'store']);
+Route::get('/admin/laboratories/{laboratory}/edit', [LaboratoryController::class, 'edit']);
+Route::put('/admin/laboratories/{laboratory}', [LaboratoryController::class, 'update']);
+Route::delete('/admin/laboratories/{laboratory}', [LaboratoryController::class, 'destroy']);
+
+// Equipment management
+Route::get('/admin/equipment', [EquipmentController::class, 'index']);
+Route::get('/admin/equipment/create', [EquipmentController::class, 'create']);
+Route::post('/admin/equipment', [EquipmentController::class, 'store']);
+Route::get('/admin/equipment/{equipment}/edit', [EquipmentController::class, 'edit']);
+Route::put('/admin/equipment/{equipment}', [EquipmentController::class, 'update']);
+Route::delete('/admin/equipment/{equipment}', [EquipmentController::class, 'destroy']);
+
+// Software management
+Route::get('/admin/software', [SoftwareController::class, 'index']);
+Route::get('/admin/software/create', [SoftwareController::class, 'create']);
+Route::post('/admin/software', [SoftwareController::class, 'store']);
+Route::get('/admin/software/{software}/edit', [SoftwareController::class, 'edit']);
+Route::put('/admin/software/{software}', [SoftwareController::class, 'update']);
+Route::delete('/admin/software/{software}', [SoftwareController::class, 'destroy']);

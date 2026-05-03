@@ -6,13 +6,17 @@ use Illuminate\Database\Eloquent\Model;
 
 class Equipment extends Model
 {
-    protected $primaryKey = 'equipment_id';
-
     protected $fillable = [
-        'lab_id', 
+        'lab_id',
         'equipment_name',
         'serial_number',
         'type',
         'purchase_date',
+        'status',
     ];
+
+    public function laboratory()
+    {
+        return $this->belongsTo(Laboratory::class, 'lab_id');
+    }
 }
