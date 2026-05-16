@@ -11,12 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('laboratories', function (Blueprint $table) {
-            $table->id();
-            $table->string('lab_name');
-            $table->integer('status');
-            $table->integer('capacity');
-            $table->timestamps();
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            $table->string('email')->primary();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
         });
     }
 
@@ -25,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('laboratories');
+        Schema::dropIfExists('password_reset_tokens');
     }
 };
