@@ -20,6 +20,15 @@ Route::get('/admin/users/{user}/edit', [AdminController::class, 'editUser']);
 Route::put('/admin/users/{user}', [AdminController::class, 'updateUser']);
 Route::delete('/admin/users/{user}', [AdminController::class, 'destroyUser']);
 
+// Course management
+use App\Http\Controllers\CourseController;
+Route::get('/admin/courses', [CourseController::class, 'index']);
+Route::get('/admin/courses/create', [CourseController::class, 'create']);
+Route::post('/admin/courses', [CourseController::class, 'store']);
+Route::get('/admin/courses/{course}/edit', [CourseController::class, 'edit']);
+Route::put('/admin/courses/{course}', [CourseController::class, 'update']);
+Route::delete('/admin/courses/{course}', [CourseController::class, 'destroy']);
+
 // Laboratory management
 Route::get('/admin/laboratories', [LaboratoryController::class, 'index']);
 Route::get('/admin/laboratories/create', [LaboratoryController::class, 'create']);
@@ -43,3 +52,12 @@ Route::post('/admin/software', [SoftwareController::class, 'store']);
 Route::get('/admin/software/{software}/edit', [SoftwareController::class, 'edit']);
 Route::put('/admin/software/{software}', [SoftwareController::class, 'update']);
 Route::delete('/admin/software/{software}', [SoftwareController::class, 'destroy']);
+
+// Schedule management
+use App\Http\Controllers\ScheduleController;
+Route::get('/admin/schedules', [ScheduleController::class, 'index']);
+Route::get('/admin/schedules/create', [ScheduleController::class, 'create']);
+Route::post('/admin/schedules', [ScheduleController::class, 'store']);
+Route::get('/admin/schedules/{schedule}/edit', [ScheduleController::class, 'edit']);
+Route::put('/admin/schedules/{schedule}', [ScheduleController::class, 'update']);
+Route::delete('/admin/schedules/{schedule}', [ScheduleController::class, 'destroy']);

@@ -73,7 +73,7 @@
 
                     <!-- Courses -->
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="{{ url('/admin/courses') }}" class="nav-link {{ request()->is('admin/courses*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-book"></i>
                             <p>Courses</p>
                         </a>
@@ -99,7 +99,7 @@
 
                     <!-- Schedules -->
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
+                        <a href="{{ url('/admin/schedules') }}" class="nav-link {{ request()->is('admin/schedules*') ? 'active' : '' }}">
                             <i class="nav-icon fas fa-clock"></i>
                             <p>Schedules</p>
                         </a>

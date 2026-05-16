@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class Schedule extends Model
 {
-    protected $primaryKey = 'schedule_id';
 
     protected $fillable = [
         'lab_id',    
@@ -16,4 +15,14 @@ class Schedule extends Model
         'start_time',
         'end_time',
     ];
+
+    public function laboratory()
+    {
+        return $this->belongsTo(Laboratory::class, 'lab_id');
+    }
+
+    public function course()
+    {
+        return $this->belongsTo(Course::class, 'course_id');
+    }
 }
