@@ -17,6 +17,8 @@ return new class extends Migration
             $table->foreignId('software_id')->constrained('software')->onDelete('cascade');
             $table->string('version');
             $table->integer('status'); 
+
+            
             $table->timestamps();
         });
     }
