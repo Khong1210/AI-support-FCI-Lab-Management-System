@@ -19,15 +19,31 @@ class ScheduleController extends Controller
 
         $semesters = Semester::all();
         $selectedSemesterId = $request->input('semester_id');
+        $selectedSemester = null;
+        $semesterStartDate = null;
+        $semesterEndDate = null;
 
         $scheduleQuery = Schedule::with(['course', 'semester', 'laboratory'])->where('lab_id', $selectedLabId);
         if ($selectedSemesterId) {
+            $selectedSemester = $semesters->where('id', $selectedSemesterId)->first();
+            if ($selectedSemester) {
+                $semesterStartDate = \Carbon\Carbon::parse($selectedSemester->start_date);
+                $semesterEndDate = \Carbon\Carbon::parse($selectedSemester->end_date);
+            }
             $scheduleQuery->where('semester_id', $selectedSemesterId);
         }
         $schedules = $scheduleQuery->get();
         
         // Setup current week logic
         $currentDate = $request->input('date') ? \Carbon\Carbon::parse($request->input('date')) : \Carbon\Carbon::now();
+        
+        // If semester is selected, constrain currentDate within semester bounds
+        if ($selectedSemester && $currentDate < $semesterStartDate) {
+            $currentDate = $semesterStartDate->copy();
+        } elseif ($selectedSemester && $currentDate > $semesterEndDate) {
+            $currentDate = $semesterEndDate->copy();
+        }
+        
         $startOfWeek = $currentDate->copy()->startOfWeek(\Carbon\Carbon::MONDAY);
         
         $weekDates = [];
@@ -75,6 +91,24 @@ class ScheduleController extends Controller
                 $end = substr($sched->end_time, 0, 5);
                 
                 try {
+                    // Check if schedule falls within semester date range
+                    $scheduleSemester = $sched->semester;
+                    $semesterStart = $scheduleSemester ? \Carbon\Carbon::parse($scheduleSemester->start_date) : null;
+                    $semesterEnd = $scheduleSemester ? \Carbon\Carbon::parse($scheduleSemester->end_date) : null;
+                    
+                    // Find the actual date for this day of week in the current week
+                    $dayIndex = array_search($day, $days);
+                    if ($dayIndex === false) continue;
+                    
+                    $scheduleDate = $startOfWeek->copy()->addDays($dayIndex);
+                    
+                    // Check if the schedule date is within the semester date range
+                    if ($semesterStart && $semesterEnd) {
+                        if ($scheduleDate < $semesterStart || $scheduleDate > $semesterEnd) {
+                            continue; // Skip this schedule as it's outside the semester range
+                        }
+                    }
+                    
                     $startCarbon = \Carbon\Carbon::createFromFormat('H:i', $start);
                     $endCarbon = \Carbon\Carbon::createFromFormat('H:i', $end);
                     $blocks = max(1, $startCarbon->diffInMinutes($endCarbon) / 60);
@@ -162,10 +196,40 @@ class ScheduleController extends Controller
 
         $monthName = $currentDate->format('F Y');
         $params = ($selectedSemesterId ? '&semester_id=' . $selectedSemesterId : '') . ($selectedLabId ? '&lab_id=' . $selectedLabId : '');
+        
+        // Calculate prev/next week navigation with semester boundary checks
+        $prevWeekDate = $currentDate->copy()->subWeek();
+        $nextWeekDate = $currentDate->copy()->addWeek();
+        
+        // Check if prev week goes outside semester bounds
+        $canGoPrevWeek = true;
+        $prevWeekAtBoundary = false;
+        if ($selectedSemester) {
+            if ($prevWeekDate->endOfWeek() < $semesterStartDate) {
+                $canGoPrevWeek = false;
+            } elseif ($prevWeekDate->startOfWeek(\Carbon\Carbon::MONDAY) < $semesterStartDate) {
+                $prevWeekAtBoundary = true;
+                $prevWeekDate = $semesterStartDate->copy()->startOfWeek(\Carbon\Carbon::MONDAY);
+            }
+        }
+        
+        // Check if next week goes outside semester bounds
+        $canGoNextWeek = true;
+        $nextWeekAtBoundary = false;
+        if ($selectedSemester) {
+            if ($nextWeekDate->startOfWeek(\Carbon\Carbon::MONDAY) > $semesterEndDate) {
+                $canGoNextWeek = false;
+            } elseif ($nextWeekDate->endOfWeek() > $semesterEndDate) {
+                $nextWeekAtBoundary = true;
+                $nextWeekDate = $semesterEndDate->copy()->endOfWeek();
+            }
+        }
+        
+        $prevWeek = $prevWeekDate->format('Y-m-d') . $params;
+        $nextWeek = $nextWeekDate->format('Y-m-d') . $params;
+        
         $prevMonth = $currentDate->copy()->subMonth()->format('Y-m-d') . $params;
         $nextMonth = $currentDate->copy()->addMonth()->format('Y-m-d') . $params;
-        $prevWeek = $currentDate->copy()->subWeek()->format('Y-m-d') . $params;
-        $nextWeek = $currentDate->copy()->addWeek()->format('Y-m-d') . $params;
 
         return view('admin.schedules.index', compact(
             'schedules', 
@@ -177,8 +241,13 @@ class ScheduleController extends Controller
             'nextMonth',
             'prevWeek',
             'nextWeek',
+            'canGoPrevWeek',
+            'canGoNextWeek',
             'semesters',
             'selectedSemesterId',
+            'selectedSemester',
+            'semesterStartDate',
+            'semesterEndDate',
             'laboratories',
             'selectedLabId',
             'selectedLab',

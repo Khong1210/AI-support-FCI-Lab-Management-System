@@ -126,6 +126,12 @@
         background-color: #007bff;
         color: white;
     }
+    .nav-link.disabled {
+        color: #ccc !important;
+        pointer-events: none;
+        cursor: not-allowed;
+        opacity: 0.65;
+    }
 </style>
 @endpush
 
@@ -143,7 +149,7 @@
                 @endforeach
             </select>
 
-            <label class="mr-2 mb-0" for="semester_id"><i class="fas fa-filter mr-1"></i> Semester</label>
+            <label class="mr-2 mb-0" for="semester_id"><i class="fas fa-filter mr-1"></i> Semester (Trimester)</label>
             <select name="semester_id" id="semester_id" class="form-control form-control-sm mr-2" onchange="this.form.submit()">
                 <option value="">All Semesters</option>
                 @foreach($semesters as $semester)
@@ -152,8 +158,13 @@
                     </option>
                 @endforeach
             </select>
-            @if($selectedSemesterId)
-                <a href="{{ url('/admin/schedules?date=' . $currentDate->format('Y-m-d') . ($selectedLabId ? '&lab_id=' . $selectedLabId : '')) }}" class="btn btn-sm btn-secondary">Clear Filter</a>
+            @if($selectedSemesterId && $selectedSemester)
+                <span class="text-muted small ml-2">
+                    <i class="fas fa-calendar mr-1"></i>
+                    <strong>From:</strong> {{ $semesterStartDate->format('M d, Y') }} 
+                    <strong>To:</strong> {{ $semesterEndDate->format('M d, Y') }}
+                </span>
+                <a href="{{ url('/admin/schedules?date=' . $currentDate->format('Y-m-d') . ($selectedLabId ? '&lab_id=' . $selectedLabId : '')) }}" class="btn btn-sm btn-secondary ml-2">Clear Filter</a>
             @endif
         </form>
     </div>
@@ -167,9 +178,17 @@
         </h3>
         <ul class="nav nav-pills ml-auto p-2">
             <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules/add') }}"><i class="fas fa-plus"></i> Add Schedule</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $prevWeek) }}"><i class="fas fa-chevron-left"></i> Prev Week</a></li>
+            @if($selectedSemesterId && !($canGoPrevWeek ?? true))
+                <li class="nav-item"><a class="nav-link disabled" href="#"><i class="fas fa-chevron-left"></i> Prev Week</a></li>
+            @else
+                <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $prevWeek) }}"><i class="fas fa-chevron-left"></i> Prev Week</a></li>
+            @endif
             <li class="nav-item"><a class="nav-link active" href="{{ url('/admin/schedules' . ($selectedSemesterId || $selectedLabId ? '?' . http_build_query(array_filter(['semester_id' => $selectedSemesterId, 'lab_id' => $selectedLabId])) : '')) }}">Current Week</a></li>
-            <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $nextWeek) }}">Next Week <i class="fas fa-chevron-right"></i></a></li>
+            @if($selectedSemesterId && !($canGoNextWeek ?? true))
+                <li class="nav-item"><a class="nav-link disabled" href="#">Next Week <i class="fas fa-chevron-right"></i></a></li>
+            @else
+                <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $nextWeek) }}">Next Week <i class="fas fa-chevron-right"></i></a></li>
+            @endif
         </ul>
     </div>
     <div class="card-body p-0 table-responsive">
@@ -296,8 +315,16 @@
                 <div class="text-muted small">
                     <strong>Current lab:</strong><br>
                     {{ $selectedLab->lab_name ?? 'None' }}<br>
-                    <strong>Semester:</strong><br>
-                    {{ $selectedSemesterId ? ($semesters->firstWhere('id', $selectedSemesterId)->name ?? 'Selected') : 'All' }}
+                    <strong>Semester/Trimester:</strong><br>
+                    @if($selectedSemesterId && $selectedSemester)
+                        {{ $selectedSemester->name }}<br>
+                        <i class="fas fa-calendar mr-1"></i>
+                        <strong>Start:</strong> {{ $semesterStartDate->format('M d, Y') }}<br>
+                        <i class="fas fa-calendar mr-1"></i>
+                        <strong>End:</strong> {{ $semesterEndDate->format('M d, Y') }}
+                    @else
+                        All Semesters
+                    @endif
                 </div>
             </div>
         </div>
