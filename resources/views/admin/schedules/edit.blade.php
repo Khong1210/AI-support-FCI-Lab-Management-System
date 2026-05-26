@@ -14,6 +14,20 @@
         @method('PUT')
         <div class="card-body">
             <div class="row">
+                <div class="col-md-12 form-group">
+                    <label>Semester</label>
+                    <select name="semester_id" class="form-control @error('semester_id') is-invalid @enderror" required>
+                        <option value="">Select Semester</option>
+                        @foreach($semesters as $semester)
+                            <option value="{{ $semester->id }}" {{ $schedule->semester_id == $semester->id ? 'selected' : '' }}>{{ $semester->name }} ({{ $semester->start_date }} - {{ $semester->end_date }})</option>
+                        @endforeach
+                    </select>
+                    @error('semester_id')
+                        <span class="invalid-feedback" role="alert"><strong>{{ $message }}</strong></span>
+                    @enderror
+                </div>
+            </div>
+            <div class="row">
                 <div class="col-md-6 form-group">
                     <label>Laboratory</label>
                     <select name="lab_id" class="form-control" required>
@@ -54,11 +68,8 @@
                     <select name="start_time" class="form-control @error('start_time') is-invalid @enderror" required>
                         <option value="">Select Time</option>
                         @for($h = 8; $h <= 20; $h++)
-                            @foreach(['00', '30'] as $m)
-                                @if($h == 20 && $m == '30') @continue @endif
-                                @php $time = sprintf('%02d:%s', $h, $m); @endphp
-                                <option value="{{ $time }}" {{ substr($schedule->start_time, 0, 5) == $time ? 'selected' : '' }}>{{ $time }}</option>
-                            @endforeach
+                            @php $time = sprintf('%02d:00', $h); @endphp
+                            <option value="{{ $time }}" {{ substr($schedule->start_time, 0, 5) == $time ? 'selected' : '' }}>{{ $time }}</option>
                         @endfor
                     </select>
                     @error('start_time')
@@ -70,11 +81,8 @@
                     <select name="end_time" class="form-control @error('end_time') is-invalid @enderror" required>
                         <option value="">Select Time</option>
                         @for($h = 8; $h <= 20; $h++)
-                            @foreach(['00', '30'] as $m)
-                                @if($h == 20 && $m == '30') @continue @endif
-                                @php $time = sprintf('%02d:%s', $h, $m); @endphp
-                                <option value="{{ $time }}" {{ substr($schedule->end_time, 0, 5) == $time ? 'selected' : '' }}>{{ $time }}</option>
-                            @endforeach
+                            @php $time = sprintf('%02d:00', $h); @endphp
+                            <option value="{{ $time }}" {{ substr($schedule->end_time, 0, 5) == $time ? 'selected' : '' }}>{{ $time }}</option>
                         @endfor
                     </select>
                     @error('end_time')
@@ -85,7 +93,7 @@
         </div>
         <div class="card-footer">
             <button type="submit" class="btn btn-primary">Update Schedule</button>
-            <a href="{{ url('/admin/schedules') }}" class="btn btn-default float-right">Cancel</a>
+            <a href="{{ url('/admin/schedules') }}" class="btn btn-secondary float-right">Cancel</a>
         </div>
     </form>
 </div>

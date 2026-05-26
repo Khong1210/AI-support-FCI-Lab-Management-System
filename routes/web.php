@@ -55,9 +55,18 @@ Route::delete('/admin/software/{software}', [SoftwareController::class, 'destroy
 
 // Schedule management
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\SemesterController;
 Route::get('/admin/schedules', [ScheduleController::class, 'index']);
 Route::get('/admin/schedules/create', [ScheduleController::class, 'create']);
 Route::post('/admin/schedules', [ScheduleController::class, 'store']);
 Route::get('/admin/schedules/{schedule}/edit', [ScheduleController::class, 'edit']);
 Route::put('/admin/schedules/{schedule}', [ScheduleController::class, 'update']);
 Route::delete('/admin/schedules/{schedule}', [ScheduleController::class, 'destroy']);
+
+// Semester management
+Route::get('/admin/semesters', [SemesterController::class, 'index']);
+Route::get('/admin/semesters/create', [SemesterController::class, 'create']);
+Route::post('/admin/semesters', [SemesterController::class, 'store']);
+Route::get('/admin/semesters/{semester}/edit', [SemesterController::class, 'edit']);
+Route::put('/admin/semesters/{semester}', [SemesterController::class, 'update']);
+Route::delete('/admin/semesters/{semester}', [SemesterController::class, 'destroy']);

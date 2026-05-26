@@ -40,6 +40,31 @@
         display: block;
     }
     
+    .schedule-block.enroll {
+        background-color: #007bff; /* Blue */
+    }
+    .schedule-block.booking {
+        background-color: #28a745; /* Green */
+    }
+    .schedule-block.maintenance {
+        background-color: #dc3545; /* Red */
+    }
+    .schedule-block.none {
+        background-color: #f8f9fa; /* Grey */
+        color: #adb5bd;
+        border: 1px dashed #dee2e6;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        min-height: 40px;
+    }
+    .schedule-block.h-100 {
+        height: 100%;
+        min-height: 40px;
+    }
+    
     /* Mini Calendar */
     .mini-calendar {
         width: 100%;
@@ -83,15 +108,48 @@
 @endpush
 
 @section('content')
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card card-outline card-info mb-0">
+            <div class="card-body py-2 d-flex align-items-center">
+                <form action="{{ url('/admin/schedules') }}" method="GET" class="form-inline w-100">
+                    <input type="hidden" name="date" value="{{ $currentDate->format('Y-m-d') }}">
+                    <label class="mr-2 mb-0" for="lab_id"><i class="fas fa-door-open mr-1"></i> Laboratory:</label>
+                    <select name="lab_id" id="lab_id" class="form-control form-control-sm mr-4" onchange="this.form.submit()">
+                        @foreach($laboratories as $lab)
+                            <option value="{{ $lab->id }}" {{ $selectedLabId == $lab->id ? 'selected' : '' }}>
+                                {{ $lab->lab_name }}
+                            </option>
+                        @endforeach
+                    </select>
+
+                    <label class="mr-2 mb-0" for="semester_id"><i class="fas fa-filter mr-1"></i> Filter by Semester:</label>
+                    <select name="semester_id" id="semester_id" class="form-control form-control-sm mr-2" onchange="this.form.submit()">
+                        <option value="">All Semesters</option>
+                        @foreach($semesters as $semester)
+                            <option value="{{ $semester->id }}" {{ $selectedSemesterId == $semester->id ? 'selected' : '' }}>
+                                {{ $semester->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @if($selectedSemesterId)
+                        <a href="{{ url('/admin/schedules?date=' . $currentDate->format('Y-m-d')) }}" class="btn btn-sm btn-secondary">Clear Filter</a>
+                    @endif
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-3">
-        <!-- Monthly Calendar Card -->
         <div class="card card-primary card-outline">
             <div class="card-header border-0">
                 <h3 class="card-title w-100 d-flex justify-content-between align-items-center">
-                    <a href="{{ url('/admin/schedules?date=' . $prevMonth) }}" class="btn btn-sm btn-link"><i class="fas fa-chevron-left"></i></a>
+                    @php $qs = $selectedSemesterId ? '&semester_id=' . $selectedSemesterId : ''; @endphp
+                    <a href="{{ url('/admin/schedules?date=' . $prevMonth . $qs) }}" class="btn btn-sm btn-link"><i class="fas fa-chevron-left"></i></a>
                     <strong>{{ $monthName }}</strong>
-                    <a href="{{ url('/admin/schedules?date=' . $nextMonth) }}" class="btn btn-sm btn-link"><i class="fas fa-chevron-right"></i></a>
+                    <a href="{{ url('/admin/schedules?date=' . $nextMonth . $qs) }}" class="btn btn-sm btn-link"><i class="fas fa-chevron-right"></i></a>
                 </h3>
             </div>
             <div class="card-body p-2">
@@ -112,7 +170,7 @@
                             <tr>
                                 @foreach($week as $day)
                                     <td class="{{ !$day['is_current_month'] ? 'text-muted' : '' }} {{ $day['is_today'] ? 'today' : '' }} {{ $day['is_selected_week'] && !$day['is_today'] ? 'selected-week' : '' }}">
-                                        <a href="{{ url('/admin/schedules?date=' . $day['date']) }}">{{ $day['day'] }}</a>
+                                        <a href="{{ url('/admin/schedules?date=' . $day['date'] . $qs) }}">{{ $day['day'] }}</a>
                                     </td>
                                 @endforeach
                             </tr>
@@ -122,35 +180,30 @@
             </div>
         </div>
 
-        <div class="card card-primary">
+        <div class="card card-secondary card-outline mt-3">
             <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-list mr-2"></i>Quick Actions</h3>
+                <h3 class="card-title"><i class="fas fa-tools mr-2"></i>Actions</h3>
             </div>
             <div class="card-body">
-                <a href="{{ url('/admin/schedules/create') }}" class="btn btn-primary btn-block mb-3">
+                <a href="{{ url('/admin/schedules/create') }}" class="btn btn-primary btn-block mb-2">
                     <i class="fas fa-plus mr-1"></i> Add Schedule
                 </a>
-                <p class="text-muted">Manage schedules globally across all weeks.</p>
+                <a href="{{ url('/admin/semesters') }}" class="btn btn-outline-secondary btn-block mb-3">
+                    <i class="fas fa-calendar-alt mr-1"></i> Manage Semesters
+                </a>
+                <div class="text-muted small mb-3">
+                    <strong>Current lab:</strong><br>
+                    {{ $selectedLab->lab_name ?? 'None' }}<br>
+                    <strong>Semester:</strong><br>
+                    {{ $selectedSemesterId ? ($semesters->firstWhere('id', $selectedSemesterId)->name ?? 'Selected') : 'All' }}
+                </div>
                 <hr>
-                <h5>All Schedules</h5>
-                <ul class="list-unstyled">
-                    @forelse($schedules as $schedule)
-                        <li class="mb-3 border-bottom pb-2">
-                            <i class="fas fa-clock text-primary"></i> 
-                            <strong>{{ $schedule->course->course_name ?? 'Course' }}</strong> - {{ $schedule->laboratory->lab_name ?? 'Lab' }}<br>
-                            <small class="text-muted">{{ $schedule->day_of_week }}, {{ substr($schedule->start_time, 0, 5) }} - {{ substr($schedule->end_time, 0, 5) }}</small>
-                            <div class="mt-1">
-                                <a href="{{ url('/admin/schedules/' . $schedule->id . '/edit') }}" class="text-info"><i class="fas fa-edit"></i> Edit</a> | 
-                                <form action="{{ url('/admin/schedules/' . $schedule->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this schedule?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-link text-danger p-0 m-0 align-baseline"><i class="fas fa-trash"></i> Delete</button>
-                                </form>
-                            </div>
-                        </li>
-                    @empty
-                        <li class="text-muted">No schedules found.</li>
-                    @endforelse
+                <h6>Legend</h6>
+                <ul class="list-unstyled mb-0">
+                    <li><span class="badge badge-primary">&nbsp;</span> Scheduled Class</li>
+                    <li><span class="badge badge-success">&nbsp;</span> Booking</li>
+                    <li><span class="badge badge-danger">&nbsp;</span> Maintenance</li>
+                    <li><span class="badge badge-light text-muted border">&nbsp;</span> Empty slot</li>
                 </ul>
             </div>
         </div>
@@ -161,9 +214,9 @@
             <div class="card-header d-flex p-0">
                 <h3 class="card-title p-3">Weekly Timetable</h3>
                 <ul class="nav nav-pills ml-auto p-2">
-                    <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $prevWeek) }}"><i class="fas fa-chevron-left"></i> Prev Week</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="{{ url('/admin/schedules') }}">Current Week</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $nextWeek) }}">Next Week <i class="fas fa-chevron-right"></i></a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $prevWeek . $qs) }}"><i class="fas fa-chevron-left"></i> Prev Week</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="{{ url('/admin/schedules' . ($selectedSemesterId ? '?semester_id='.$selectedSemesterId : '')) }}">Current Week</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules?date=' . $nextWeek . $qs) }}">Next Week <i class="fas fa-chevron-right"></i></a></li>
                 </ul>
             </div>
             <div class="card-body p-0 table-responsive">
@@ -183,33 +236,43 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @for($hour = 8; $hour <= 20; $hour++)
+                        @foreach($timetable as $timeSlot => $daysRow)
                             <tr>
-                                <td class="time-col">{{ sprintf('%02d:00', $hour) }}</td>
+                                <td class="time-col">{{ $timeSlot }}</td>
                                 @foreach($days as $day)
-                                    <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }}">
-                                        @foreach($schedules as $schedule)
-                                            @php
-                                                $startHour = (int)substr($schedule->start_time, 0, 2);
-                                                $endHour = (int)substr($schedule->end_time, 0, 2);
-                                                $endMin = (int)substr($schedule->end_time, 3, 2);
-                                                if($endMin > 0) $endHour++; // to cover partial hours
-                                                $isInHour = $schedule->day_of_week === $day && $startHour <= $hour && $endHour > $hour;
-                                            @endphp
-                                            @if($isInHour)
-                                                <div class="schedule-block">
-                                                    <strong>{{ $schedule->course->course_name ?? 'Course' }}</strong><br>
-                                                    <small>{{ $schedule->laboratory->lab_name ?? 'Lab' }}</small>
-                                                    <div class="schedule-actions">
-                                                        <a href="{{ url('/admin/schedules/' . $schedule->id . '/edit') }}" class="text-white mx-1"><i class="fas fa-edit"></i></a>
-                                                    </div>
+                                    @php $slot = $daysRow[$day]; @endphp
+                                    @if($slot['type'] === 'skip')
+                                        @continue
+                                    @endif
+                                    
+                                    <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }} p-1" rowspan="{{ $slot['rowspan'] }}">
+                                        @if($slot['type'] === 'none')
+                                            <div class="schedule-block none">
+                                                <span>None</span>
+                                            </div>
+                                        @elseif($slot['type'] === 'maintenance')
+                                            <div class="schedule-block maintenance h-100">
+                                                <strong>Maintenance / Closed</strong><br>
+                                                <small>{{ is_string($slot['data']) ? $slot['data'] : $slot['data']->purpose }}</small>
+                                            </div>
+                                        @elseif($slot['type'] === 'booking')
+                                            <div class="schedule-block booking h-100">
+                                                <strong>Booking</strong><br>
+                                                <small>{{ $slot['data']->purpose }}</small>
+                                            </div>
+                                        @elseif($slot['type'] === 'enroll')
+                                            <div class="schedule-block enroll h-100">
+                                                <strong>{{ $slot['data']->course->course_name ?? 'Course' }}</strong><br>
+                                                <small class="badge badge-light border border-secondary text-muted mt-1">{{ $slot['data']->semester->name ?? 'No Semester' }}</small>
+                                                <div class="schedule-actions">
+                                                    <a href="{{ url('/admin/schedules/' . $slot['data']->id . '/edit') }}" class="text-white mx-1"><i class="fas fa-edit"></i></a>
                                                 </div>
-                                            @endif
-                                        @endforeach
+                                            </div>
+                                        @endif
                                     </td>
                                 @endforeach
                             </tr>
-                        @endfor
+                        @endforeach
                     </tbody>
                 </table>
             </div>

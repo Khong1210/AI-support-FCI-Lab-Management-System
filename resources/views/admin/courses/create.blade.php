@@ -34,7 +34,7 @@
         </div>
         <div class="card-footer">
             <button type="submit" class="btn btn-primary">Save Course</button>
-            <a href="{{ url('/admin/courses') }}" class="btn btn-default float-right">Cancel</a>
+            <a href="{{ url('/admin/courses') }}" class="btn btn-secondary float-right">Cancel</a>
         </div>
     </form>
 </div>
