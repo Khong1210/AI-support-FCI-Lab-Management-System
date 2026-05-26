@@ -1,15 +1,15 @@
 @extends('layouts.admin')
 
-@section('title', 'Create User')
-@section('page-title', 'Create User')
-@section('breadcrumb', 'Users')
+@section('title', 'Add User')
+@section('page-title', 'Add User')
+@section('breadcrumb', 'Add User')
 
 @section('content')
 <div class="row">
     <div class="col-md-8 offset-md-2">
         <div class="card card-success card-outline">
             <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-user-plus mr-2"></i>Create New User</h3>
+                <h3 class="card-title"><i class="fas fa-user-plus mr-2"></i>Add New User</h3>
             </div>
             <form action="{{ url('/admin/users') }}" method="POST">
                 @csrf
@@ -80,7 +80,7 @@
                 </div>
                 <div class="card-footer">
                     <button type="submit" class="btn btn-success">
-                        <i class="fas fa-check mr-1"></i> Create User
+                        <i class="fas fa-check mr-1"></i> Add User
                     </button>
                     <a href="{{ url('/admin/users') }}" class="btn btn-secondary">
                         <i class="fas fa-times mr-1"></i> Cancel

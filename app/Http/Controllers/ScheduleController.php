@@ -44,7 +44,7 @@ class ScheduleController extends Controller
         // Fetch Bookings for this week
         $bookings = \App\Models\Booking::where('lab_id', $selectedLabId)
             ->whereBetween('date', [$startOfWeek->format('Y-m-d'), $startOfWeek->copy()->endOfWeek()->format('Y-m-d')])
-            ->whereNotIn('status', ['rejected', 'cancelled', '0'])
+            ->where('status', 2)
             ->get();
 
         // Build Timetable Matrix

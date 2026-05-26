@@ -73,7 +73,7 @@
                         <i class="fas fa-calendar-alt text-red-600 text-2xl"></i>
                     </div>
                 </div>
-                <a href="#" class="mt-4 inline-flex items-center text-red-600 hover:text-red-700 font-medium text-sm">
+                <a href="{{ url('/admin/bookings') }}" class="mt-4 inline-flex items-center text-red-600 hover:text-red-700 font-medium text-sm">
                     View Details <i class="fas fa-arrow-right ml-2"></i>
                 </a>
             </div>
@@ -129,7 +129,7 @@
             </div>
 
             <div class="space-y-3">
-                <a href="{{ url('/admin/users/create') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
+                <a href="{{ url('/admin/users/add') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
                     <div class="flex items-center">
                         <div class="bg-white/30 rounded-lg p-3 mr-3">
                             <i class="fas fa-user-plus text-white text-lg"></i>

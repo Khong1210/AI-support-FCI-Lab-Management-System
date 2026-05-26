@@ -5,25 +5,14 @@
 @section('breadcrumb', 'Courses')
 
 @section('content')
-<div class="row mb-3">
-    <div class="col-md-12">
-        <div class="card card-success card-outline">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-book mr-2"></i>Quick Actions</h3>
-            </div>
-            <div class="card-body">
-                <a href="{{ url('/admin/courses/create') }}" class="btn btn-success mb-2">
-                    <i class="fas fa-plus mr-1"></i> New Course
-                </a>
-                <p class="text-muted mt-3">Create and manage courses.</p>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="card card-primary card-outline">
     <div class="card-header">
         <h3 class="card-title"><i class="fas fa-list mr-2"></i>Course List</h3>
+        <div class="card-tools">
+            <a href="{{ url('/admin/courses/add') }}" class="btn btn-sm btn-success">
+                <i class="fas fa-plus mr-1"></i> Add Course
+            </a>
+        </div>
     </div>
     <div class="card-body table-responsive p-0">
         @if ($courses->count())
@@ -71,7 +60,7 @@
         @else
             <div class="alert alert-info m-3">
                 <i class="fas fa-info-circle mr-2"></i>
-                <strong>No courses found.</strong> Create a new course to get started.
+                <strong>No courses found.</strong> No records are available yet.
             </div>
         @endif
     </div>

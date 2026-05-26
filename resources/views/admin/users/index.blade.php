@@ -57,8 +57,8 @@
     <div class="card-header">
         <h3 class="card-title"><i class="fas fa-users mr-2"></i>Users List</h3>
         <div class="card-tools">
-            <a href="{{ url('/admin/users/create') }}" class="btn btn-sm btn-success">
-                <i class="fas fa-user-plus mr-1"></i> New User
+            <a href="{{ url('/admin/users/add') }}" class="btn btn-sm btn-success">
+                <i class="fas fa-plus mr-1"></i> Add User
             </a>
         </div>
     </div>
@@ -121,7 +121,7 @@
         @else
             <div class="alert alert-info m-3">
                 <i class="fas fa-info-circle mr-2"></i>
-                <strong>No users found.</strong> {{ request('search') || request('role') ? 'Try adjusting your filters.' : 'Create a new user to get started.' }}
+                <strong>No users found.</strong> {{ request('search') || request('role') ? 'Try adjusting your filters.' : 'No records are available yet.' }}
             </div>
         @endif
     </div>

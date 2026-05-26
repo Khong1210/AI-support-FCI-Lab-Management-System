@@ -1,15 +1,15 @@
 @extends('layouts.admin')
 
-@section('title', 'Create Laboratory')
-@section('page-title', 'Create Laboratory')
-@section('breadcrumb', 'Laboratories')
+@section('title', 'Add Laboratory')
+@section('page-title', 'Add Laboratory')
+@section('breadcrumb', 'Add Laboratory')
 
 @section('content')
 <div class="row">
     <div class="col-md-8 offset-md-2">
         <div class="card card-success card-outline">
             <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-plus mr-2"></i>Create Laboratory</h3>
+                <h3 class="card-title"><i class="fas fa-plus mr-2"></i>Add Laboratory</h3>
             </div>
             <form action="{{ url('/admin/laboratories') }}" method="POST">
                 @csrf
@@ -69,7 +69,7 @@
                 </div>
                 <div class="card-footer">
                     <button type="submit" class="btn btn-success">
-                        <i class="fas fa-check mr-1"></i> Save Laboratory
+                        <i class="fas fa-check mr-1"></i> Add Laboratory
                     </button>
                     <a href="{{ url('/admin/laboratories') }}" class="btn btn-secondary">
                         <i class="fas fa-times mr-1"></i> Cancel
