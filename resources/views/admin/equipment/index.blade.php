@@ -8,7 +8,9 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title">Equipment List</h3>
-            <a href="{{ url('/admin/equipment/create') }}" class="btn btn-primary btn-sm">Create Equipment</a>
+            <a href="{{ url('/admin/equipment/add') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus mr-1"></i> Add Equipment
+            </a>
         </div>
         <div class="card-body">
             <form method="GET" class="form-inline mb-3">

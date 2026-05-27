@@ -37,24 +37,16 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card card-success card-outline">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-flask-vial mr-2"></i>Quick Actions</h3>
-            </div>
-            <div class="card-body">
-                <a href="{{ url('/admin/laboratories/create') }}" class="btn btn-success mb-2">
-                    <i class="fas fa-plus mr-1"></i> New Laboratory
-                </a>
-                <p class="text-muted mt-3">Create and manage laboratories with capacity and status controls.</p>
-            </div>
-        </div>
-    </div>
 </div>
 
 <div class="card card-primary card-outline">
     <div class="card-header">
         <h3 class="card-title"><i class="fas fa-list mr-2"></i>Laboratory List</h3>
+        <div class="card-tools">
+            <a href="{{ url('/admin/laboratories/add') }}" class="btn btn-sm btn-success">
+                <i class="fas fa-plus mr-1"></i> Add Laboratory
+            </a>
+        </div>
     </div>
     <div class="card-body table-responsive p-0">
         @if ($laboratories->count())
@@ -107,7 +99,7 @@
         @else
             <div class="alert alert-info m-3">
                 <i class="fas fa-info-circle mr-2"></i>
-                <strong>No laboratories found.</strong> Create a new laboratory to get started.
+                <strong>No laboratories found.</strong> No records are available yet.
             </div>
         @endif
     </div>
