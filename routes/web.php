@@ -7,6 +7,8 @@ use App\Http\Controllers\LaboratoryController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SoftwareController;
+use App\Models\Schedule;
+use App\Models\Software;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -101,3 +103,10 @@ Route::delete('/admin/reports/{report}', [ReportController::class, 'destroy']);
 
 // Mail / inbox
 Route::get('/admin/mail', [MailController::class, 'index']);
+
+Route::get('/ai-scheduler', function () {
+    $schedules = Schedule::all();
+    $software = Software::all();
+
+    return view('ai-scheduler', compact('schedules', 'software'));
+});
