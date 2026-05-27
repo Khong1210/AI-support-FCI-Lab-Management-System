@@ -65,7 +65,7 @@ class ScheduleController extends Controller
 
         // Build Timetable Matrix
         $timetable = [];
-        for ($h = 8; $h <= 19; $h++) {
+        for ($h = 8; $h <= 18; $h++) {
             $timeSlot = sprintf('%02d:00', $h);
             $timetable[$timeSlot] = [];
             foreach ($days as $day) {

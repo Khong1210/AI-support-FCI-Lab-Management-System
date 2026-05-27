@@ -6,44 +6,59 @@
 
 @push('styles')
 <style>
+    /* Compact schedule table styles */
     .calendar-table th, .calendar-table td {
         border: 1px solid #dee2e6;
         text-align: center;
         vertical-align: top;
-        height: 76px;
+        height: 38px;
+        padding: 3px !important;
+        font-size: 0.75rem;
     }
     .calendar-table th {
         background-color: #f4f6f9;
         font-weight: bold;
-        min-width: 140px;
+        min-width: 110px;
+        padding: 4px !important;
+    }
+    .calendar-table th small {
+        font-size: 0.65rem;
+        display: block;
+        margin-top: 2px;
     }
     .time-col {
-        width: 90px;
-        min-width: 90px !important;
+        width: 70px;
+        min-width: 70px !important;
         background-color: #f4f6f9;
         font-weight: bold;
         text-align: center !important;
         vertical-align: middle !important;
+        font-size: 0.7rem;
+        padding: 3px !important;
     }
     .schedule-block {
         background-color: #007bff;
         color: white;
-        border-radius: 4px;
-        padding: 8px;
-        font-size: 0.82rem;
-        margin: 2px;
+        border-radius: 3px;
+        padding: 3px 4px;
+        font-size: 0.65rem;
+        margin: 1px;
         position: relative;
         text-align: left;
-        line-height: 1.35;
+        line-height: 1.1;
     }
     .schedule-actions {
         display: none;
         position: absolute;
-        top: 2px;
-        right: 2px;
+        top: 1px;
+        right: 1px;
+        font-size: 0.6rem;
     }
     .schedule-block:hover .schedule-actions {
         display: block;
+    }
+    .schedule-actions a {
+        font-size: 0.6rem !important;
     }
     
     .schedule-block.enroll {
@@ -64,42 +79,56 @@
         align-items: center;
         justify-content: center;
         height: 100%;
-        min-height: 40px;
+        min-height: 35px;
+        font-size: 0.7rem;
     }
     .schedule-block.h-100 {
         height: 100%;
-        min-height: 40px;
+        min-height: 35px;
     }
     .schedule-program {
         display: block;
         font-weight: 700;
-        margin-bottom: 4px;
+        margin-bottom: 1px;
+        font-size: 0.65rem;
     }
     .schedule-meta {
         display: block;
-        font-size: 0.76rem;
+        font-size: 0.6rem;
         opacity: 0.95;
+        line-height: 1.05;
     }
+    .schedule-meta i {
+        font-size: 0.55rem;
+        margin-right: 1px;
+    }
+    .badge {
+        font-size: 0.55rem;
+        padding: 2px 4px;
+        margin-top: 1px;
+    }
+
     .schedule-panel-small .card-body {
-        padding: 0.75rem;
+        padding: 0.5rem;
     }
     .schedule-panel-small .card-header {
-        padding: 0.75rem;
+        padding: 0.5rem;
     }
     
     /* Mini Calendar */
     .mini-calendar {
         width: 100%;
         text-align: center;
-        font-size: 0.9rem;
+        font-size: 0.8rem;
     }
     .mini-calendar th {
         font-weight: bold;
         color: #495057;
-        padding: 5px;
+        padding: 3px;
+        font-size: 0.75rem;
     }
     .mini-calendar td {
-        padding: 5px;
+        padding: 2px;
         cursor: pointer;
     }
     .mini-calendar .text-muted {
@@ -110,10 +139,11 @@
         text-decoration: none;
         display: block;
         border-radius: 50%;
-        width: 25px;
-        height: 25px;
-        line-height: 25px;
+        width: 22px;
+        height: 22px;
+        line-height: 22px;
         margin: 0 auto;
+        font-size: 0.75rem;
     }
     .mini-calendar td a:hover {
         background-color: #e9ecef;
@@ -131,6 +161,21 @@
         pointer-events: none;
         cursor: not-allowed;
         opacity: 0.65;
+    }
+
+    /* Compact card styling */
+    .card {
+        margin-bottom: 0.5rem;
+    }
+    .card-header {
+        padding: 0.5rem 1rem;
+    }
+    .nav-pills .nav-link {
+        padding: 0.3rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    .form-control-sm {
+        font-size: 0.75rem;
     }
 </style>
 @endpush
@@ -171,12 +216,12 @@
 </div>
 
 <div class="card card-primary">
-    <div class="card-header d-flex p-0">
-        <h3 class="card-title p-3">
+    <div class="card-header d-flex p-0" style="min-height: auto;">
+        <h3 class="card-title" style="padding: 0.5rem 1rem; margin-bottom: 0; font-size: 0.95rem;">
             Weekly Schedule
-            <small class="d-block">{{ $selectedLab->lab_name ?? 'No room selected' }}</small>
+            <small class="d-block" style="font-size: 0.75rem;">{{ $selectedLab->lab_name ?? 'No room selected' }}</small>
         </h3>
-        <ul class="nav nav-pills ml-auto p-2">
+        <ul class="nav nav-pills ml-auto p-1" style="gap: 2px;">
             <li class="nav-item"><a class="nav-link" href="{{ url('/admin/schedules/add') }}"><i class="fas fa-plus"></i> Add Schedule</a></li>
             @if($selectedSemesterId && !($canGoPrevWeek ?? true))
                 <li class="nav-item"><a class="nav-link disabled" href="#"><i class="fas fa-chevron-left"></i> Prev Week</a></li>
@@ -191,7 +236,7 @@
             @endif
         </ul>
     </div>
-    <div class="card-body p-0 table-responsive">
+    <div class="card-body p-1 table-responsive" style="max-height: calc(100vh - 320px); overflow-y: auto;">
         <table class="table calendar-table m-0">
             <thead>
                 <tr>

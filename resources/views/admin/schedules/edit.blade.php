@@ -64,10 +64,10 @@
             </div>
             <div class="row">
                 <div class="col-md-4 form-group">
-                    <label>Start Time (08:00 - 20:00)</label>
+                    <label>Start Time (08:00 - 18:00)</label>
                     <select name="start_time" class="form-control @error('start_time') is-invalid @enderror" required>
                         <option value="">Select Time</option>
-                        @for($h = 8; $h <= 20; $h++)
+                        @for($h = 8; $h <= 18; $h++)
                             @php $time = sprintf('%02d:00', $h); @endphp
                             <option value="{{ $time }}" {{ substr($schedule->start_time, 0, 5) == $time ? 'selected' : '' }}>{{ $time }}</option>
                         @endfor
@@ -77,10 +77,10 @@
                     @enderror
                 </div>
                 <div class="col-md-4 form-group">
-                    <label>End Time (08:00 - 20:00)</label>
+                    <label>End Time (08:00 - 18:00)</label>
                     <select name="end_time" class="form-control @error('end_time') is-invalid @enderror" required>
                         <option value="">Select Time</option>
-                        @for($h = 8; $h <= 20; $h++)
+                        @for($h = 8; $h <= 18; $h++)
                             @php $time = sprintf('%02d:00', $h); @endphp
                             <option value="{{ $time }}" {{ substr($schedule->end_time, 0, 5) == $time ? 'selected' : '' }}>{{ $time }}</option>
                         @endfor
