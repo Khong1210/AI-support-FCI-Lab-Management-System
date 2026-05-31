@@ -82,24 +82,15 @@
         </div>
     </div>
 
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/generative-ai": "https://esm.run/@google/generative-ai"
-        }
-      }
-    </script>
+        <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <script type="module">
-        import { GoogleGenerativeAI } from "@google/generative-ai";
-
-        // 🌟 STEP 1: Paste your copied 'AIzaSy' key string from your Google AI Studio project below:
-        const API_KEY = 'AIzaSyBZQZrbO6fSfIbcHBxj45sUJ7yR65rO6mQ'; 
-        const genAI = new GoogleGenerativeAI(API_KEY);
-
-        // Core Eloquent Data Model Mapping
-        const schedules = @json($schedules ?? []);
-        const software = @json($software ?? []);
+        <script type="module">
+                // Core Data Model Mapping
+                const schedules = @json($schedules ?? []);
+                const software = @json($software ?? []);
+                const laboratories = @json($laboratories ?? []);
+                const courses = @json($courses ?? []);
+                const lecturers = @json($lecturers ?? []);
         
         const requestInput = document.getElementById('requestInput');
         const analyzeButton = document.getElementById('analyzeButton');
@@ -135,44 +126,122 @@
         }
 
         // Dynamically structuralizes the analytical context payload
-        function buildPrompt(userRequest) {
-            const scheduleLines = schedules.map((s) => 
-                `- Laboratory: ${s.laboratory || s.lab || 'N/A'}, Day: ${s.day || s.weekday || 'N/A'}, Time: ${s.start_time || s.start || 'N/A'} - ${s.end_time || s.end || 'N/A'}, Activity: ${s.title || s.course || 'N/A'}`
-            ).join('\n');
+       function buildPrompt(userRequest) {
+    // 1.  對齊你的 laboratories 表欄位：l.lab_name
+    const labRecords = laboratories.map(l => 
+        `- Lab ID: ${l.id}, Name: ${l.lab_name}, Capacity: ${l.capacity || 30} seats, Hardware: ${l.hardware || 'Standard High-Performance PC'}`
+    ).join('\n');
 
-            const softwareByLab = (Array.isArray(software) ? software : []).reduce((acc, item) => {
-                const labName = item.laboratory || item.lab || item.laboratory_name || item.location || 'Unknown';
-                acc[labName] = acc[labName] || [];
-                acc[labName].push(item.name || item.software || item.title || 'Unnamed');
-                return acc;
-            }, {});
+    // 2.  精準對齊你的 software 表欄位（截圖中的 lab_id 和 software_name）
+    const softwareRecords = software.map(s => 
+        `- Lab ID: ${s.lab_id}, Software Name: ${s.software_name}`
+    ).join('\n');
 
-            const softwareLines = Object.keys(softwareByLab).length
-                ? Object.keys(softwareByLab).map(l => `- ${l}: ${softwareByLab[l].join(', ')}`).join('\n')
-                : 'No software inventory provided.';
+    // 3.  對齊你的 schedules 表欄位（如果有的話，做一點微調防錯）
+    const existingSchedules = schedules.map(s => 
+        `- Conflicting Occupied Slot [Lab ID: ${s.lab_id || s.laboratory_id}, Day: ${s.day}, Time: ${s.start_time} - ${s.end_time}, Lecturer ID: ${s.lecturer_id || s.user_id || 'N/A'}]`
+    ).join('\n');
 
-            return `You are the Lead Lab Scheduler for the FCI Management System.
-Given the existing weekly schedule and software inventory data below, analyze the requested booking requirement to discover optimal non-conflicting time slots.
+    // 4. ACTIVE LECTURERS 保持不變...
+    const lecturerRecords = (typeof lecturers !== 'undefined' ? lecturers : []).map(u =>
+        `- Lecturer ID: ${u.id}, Name: ${u.name}, Max Available: Standard Academic Hours`
+    ).join('\n');
 
-Current Schedule Data:
-${scheduleLines || 'No existing schedules.'}
+    // 5. 課程時數 Hours 補丁（解決你前面說的沒設定 hours 的問題，直接給預設 3 小時）
+    const pendingCourses = (typeof courses !== 'undefined' ? courses : []).map(c => 
+        `- Course: ${c.title || c.name}, Required Lecturer ID: ${c.lecturer_id || c.user_id}, Required Hours per week: ${c.hours || 3} hours, Required Student Capacity: ${c.students_count || 30}`
+    ).join('\n');
 
-Software Inventory Data:
-${softwareLines}
 
-Faculty Manager Request:
+ return `You are the Elite Academic AI Timetable Architect for the FCI Management System.
+
+[STRICT DIRECTIVE: ELIMINATE ALL CHITCHAT & PREAMBLE]
+- DO NOT introduce yourself. DO NOT say "As the Elite Academic AI Timetable Architect...".
+- DO NOT write any long introductory analysis, observations, or descriptions of the dataset.
+- START your response IMMEDIATELY with "### PROPOSAL OPTION 1". 
+- Every single token must be saved for outputting the actual timetables. Move straight to the schedule generation!
+
+Your core task is to dynamically generate THREE (3) distinct, comprehensive, conflict-free weekly timetable options based strictly on the provided backend datasets.
+
+[BACKEND DATASET REGISTRY]
+1. ALL REGISTERED LABORATORIES:
+${labRecords || 'No lab data.'}
+
+2. INSTALLED SOFTWARE INVENTORY:
+${softwareRecords || 'No software data.'}
+
+3. ACTIVE LECTURERS (FCI Faculty User Role 5 Profiles):
+${lecturerRecords || 'No lecturer data.'}
+
+4. PRE-EXISTING SCHEDULE RECORDS (MUST AVOID - ZERO OVERLAP CRITICAL):
+${existingSchedules || 'No existing conflicting schedules.'}
+
+5. PENDING COURSE ARRANGEMENTS FOR THIS SEMESTER (Tasks to Schedule):
+${pendingCourses || 'No pending courses.'}
+
+[FACULTY USER EXTRA DIRECTIONS]
 "${userRequest}"
 
-Constraints:
-1. Identify 2-3 alternative available time slots for the requested laboratory.
-2. Ensure ZERO overlapping conflicts exist with the provided schedule records.
-3. If the request metadata is highly ambiguous, provide the most logical suggestion based on standard academic hours.
-4. Output Format: Present each recommendation as a structured numbered list highlighting start/end times followed by a short analytical justification.
-5. All terminology and outputs must strictly be in professional English.
-6. CRITICAL GUARDRAIL: If any queried laboratory, software dependency, or configuration info is missing from the provided context dataset, explicitly state the word 'unknown' for that targeted laboratory asset. Do NOT hallucinate or assume resource availability. When 'unknown' is invoked, append exactly one clear recommended manual verification action item (e.g., 'Verify inventory via lab admin or network inventory registry').`;
+[CORE SCHEDULING CONSTRAINTS & LOGIC]
+1. HARDWARE & CAPACITY MATCHING: A course can only be scheduled in a Laboratory if the lab's capacity >= course student count, AND all required software/hardware matches perfectly.
+2. LECTURER NO-COLLISION LOCK: A lecturer CANNOT be scheduled to teach two different classes at the same time.
+3. TIMETABLE PRIORITY (EARLIER IS BETTER): Prioritize slots starting from early morning (e.g., 08:00 AM / 09:00 AM) onwards from Monday to Friday.
+4. VARIETY REQUIREMENT: Generate exactly THREE (3) distinct, alternative full-schedule options.
+
+[MANDATORY OUTPUT FORMAT STRUCTURE]
+You MUST start directly with the template below. No greeting, no summary:
+
+=========================================
+### PROPOSAL OPTION [X] (1, 2, or 3)
+=========================================
+
+#### 👨‍🏫 VIEWPOINT A: LECTURER-CENTRIC TIMETABLE
+* **Lecturer Name:** [Name]
+  - [Day], [Start Time] - [End Time] | Course: [Title] | Assigned Room: [Lab Name] | Justification: [Optimal slot]
+
+#### 🏫 VIEWPOINT B: LABORATORY-CENTRIC TIMETABLE
+* **Laboratory Room:** [Lab Name]
+  - [Day], [Start Time] - [End Time] | Active Class: [Title] | Lecturer: [Name] | Software Verified: [Yes/No]
+
+-----------------------------------------
+[MANDATORY TRANSMISSION END SIGNAL]
+When you have successfully completed generating all 3 options, you MUST explicitly output this exact string at the very end of your response to confirm completion:
+"🎉 [SUCCESS END OF TRANSMISSION] - AI Agent out. Thank you and Goodbye!"`;
+}
+
+        // Server-side proxy function (API key stored securely in .env on server)
+       async function sendToProxy(prompt, options = {}) {
+        // 🌟 修正一：把預設的 maxTokens 提升到 2048，確保 3 套長課表不會被切斷
+        const payload = Object.assign({ prompt, model: 'gemini-2.5-flash', maxTokens: 3000 }, options);
+
+        const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        const res = await fetch('/api/ai/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // 🌟 修正二：告訴後端我們接受純文字
+                'Accept': 'text/plain, application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': token,
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Proxy request failed (${res.status}): ${text}`);
         }
 
-        // Direct Client-Side asynchronous execution loop
+        // 🌟 🌟 終極修正：拋棄 res.json()！
+        // 因為後端已經把 JSON 剥開了，這裡我們直接拿純文字字串（String）
+        const pureText = await res.text();
+
+        // 直接把純文字回傳回去，讓後面的 .replace(/\n/g, '<br>') 可以完美運行！
+        return pureText;
+    }
+
+        // Direct request analysis using the server proxy
         async function analyzeRequest() {
             const userRequest = requestInput.value.trim();
 
@@ -185,13 +254,8 @@ Constraints:
 
             try {
                 const prompt = buildPrompt(userRequest);
+                const text = await sendToProxy(prompt, { maxTokens: 3000 });
 
-                // Utilizing SDK client layer directly. Bypasses the 404 backend proxy routes completely.
-                const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-                const result = await model.generateContent(prompt);
-                const response = await result.response;
-                const text = response.text();
-                
                 // Formats newline breaks gracefully within response canvas
                 responseContainer.innerHTML = `
                     <div class="fw-semibold mb-3 text-success">✨ Recommended Slots Matrix:</div>
@@ -200,7 +264,7 @@ Constraints:
             } catch (error) {
                 responseContainer.innerHTML = `
                     <p class="text-danger mb-0">
-                        <strong>AI Optimization Node Error:</strong> ${error.message ?? 'Inference processing failure. Verify client authorization key.'}
+                        <strong>Error:</strong> ${error.message ?? 'Request processing failed. Verify server proxy is configured.'}
                     </p>
                 `;
                 console.error(error);
@@ -217,5 +281,6 @@ Constraints:
         // Initialize table dataset on load
         renderScheduleTable();
     </script>
+
 </body>
 </html>

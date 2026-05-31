@@ -1,14 +1,14 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AiSchedulerController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\LaboratoryController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SoftwareController;
-use App\Models\Schedule;
-use App\Models\Software;
+use App\Http\Controllers\AiProxyController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -104,9 +104,8 @@ Route::delete('/admin/reports/{report}', [ReportController::class, 'destroy']);
 // Mail / inbox
 Route::get('/admin/mail', [MailController::class, 'index']);
 
-Route::get('/ai-scheduler', function () {
-    $schedules = Schedule::all();
-    $software = Software::all();
+// AI Scheduler
+Route::get('/ai-scheduler', [AiSchedulerController::class, 'index']);
 
-    return view('ai-scheduler', compact('schedules', 'software'));
-});
+// AI proxy endpoint (server-side forwarding to Generative API)
+Route::post('/api/ai/generate', [AiProxyController::class, 'generate']);
