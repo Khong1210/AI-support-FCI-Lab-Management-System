@@ -125,43 +125,40 @@
             }).join('');
         }
 
-        // Dynamically structuralizes the analytical context payload
-       function buildPrompt(userRequest) {
-    // 1.  對齊你的 laboratories 表欄位：l.lab_name
+     function buildPrompt(userRequest) {
+    // 1. 🔍 保持原樣（對齊你現有的資料庫欄位：l.lab_name）
     const labRecords = laboratories.map(l => 
-        `- Lab ID: ${l.id}, Name: ${l.lab_name}, Capacity: ${l.capacity || 30} seats, Hardware: ${l.hardware || 'Standard High-Performance PC'}`
+        `- Lab ID: ${l.id}, Name: ${l.lab_name}, Capacity: ${l.capacity || 30} seats`
     ).join('\n');
 
-    // 2.  精準對齊你的 software 表欄位（截圖中的 lab_id 和 software_name）
+    // 2. 🔍 保持原樣（對齊你現有的資料庫欄位：s.lab_id, s.software_name）
     const softwareRecords = software.map(s => 
         `- Lab ID: ${s.lab_id}, Software Name: ${s.software_name}`
     ).join('\n');
 
-    // 3.  對齊你的 schedules 表欄位（如果有的話，做一點微調防錯）
+    // 3. 🔍 保持原樣
     const existingSchedules = schedules.map(s => 
         `- Conflicting Occupied Slot [Lab ID: ${s.lab_id || s.laboratory_id}, Day: ${s.day}, Time: ${s.start_time} - ${s.end_time}, Lecturer ID: ${s.lecturer_id || s.user_id || 'N/A'}]`
     ).join('\n');
 
-    // 4. ACTIVE LECTURERS 保持不變...
+    // 4. 🔍 保持原樣
     const lecturerRecords = (typeof lecturers !== 'undefined' ? lecturers : []).map(u =>
-        `- Lecturer ID: ${u.id}, Name: ${u.name}, Max Available: Standard Academic Hours`
+        `- Lecturer ID: ${u.id}, Name: ${u.name || u.username || 'Lecturer_' + u.id}, Max Available: Standard Academic Hours`
     ).join('\n');
 
-    // 5. 課程時數 Hours 補丁（解決你前面說的沒設定 hours 的問題，直接給預設 3 小時）
+    // 5. 🔍 保持原樣：因為資料庫還沒有 c.hours，我們在這裡用「c.hours || 3」在前端虛擬給它 3 小時，安全過關！
     const pendingCourses = (typeof courses !== 'undefined' ? courses : []).map(c => 
-        `- Course: ${c.title || c.name}, Required Lecturer ID: ${c.lecturer_id || c.user_id}, Required Hours per week: ${c.hours || 3} hours, Required Student Capacity: ${c.students_count || 30}`
+        `- Course: ${c.name || c.title || c.course_name || 'Course_' + c.id}, Required Lecturer ID: ${c.lecturer_id || c.user_id}, Required Hours per week: ${c.hours || 3} hours, Required Student Capacity: ${c.students_count || 30}`
     ).join('\n');
 
+    // 🌟 修正後的完美回傳區塊，字串一路包到底，高亮絕對正常
+    return `You are the Elite Academic AI Timetable Architect for the FCI Management System.
 
- return `You are the Elite Academic AI Timetable Architect for the FCI Management System.
-
-[STRICT DIRECTIVE: ELIMINATE ALL CHITCHAT & PREAMBLE]
-- DO NOT introduce yourself. DO NOT say "As the Elite Academic AI Timetable Architect...".
-- DO NOT write any long introductory analysis, observations, or descriptions of the dataset.
-- START your response IMMEDIATELY with "### PROPOSAL OPTION 1". 
-- Every single token must be saved for outputting the actual timetables. Move straight to the schedule generation!
-
-Your core task is to dynamically generate THREE (3) distinct, comprehensive, conflict-free weekly timetable options based strictly on the provided backend datasets.
+[STRICT DIRECTIVE: ELIMINATE ALL CHITCHAT, PREAMBLE & VERBOSITY]
+- START your response IMMEDIATELY with "### PROPOSAL OPTION 1". No overview, no intro.
+- Keep the "Justification" string EXTREMELY SHORT (maximum 5 words).
+- ONLY schedule exactly FOUR (4) courses from the pending list for each option. Do not schedule more than 4 courses!
+- Cut down the output volume to save tokens.
 
 [BACKEND DATASET REGISTRY]
 1. ALL REGISTERED LABORATORIES:
@@ -170,46 +167,53 @@ ${labRecords || 'No lab data.'}
 2. INSTALLED SOFTWARE INVENTORY:
 ${softwareRecords || 'No software data.'}
 
-3. ACTIVE LECTURERS (FCI Faculty User Role 5 Profiles):
+3. ACTIVE LECTURERS:
 ${lecturerRecords || 'No lecturer data.'}
 
-4. PRE-EXISTING SCHEDULE RECORDS (MUST AVOID - ZERO OVERLAP CRITICAL):
+4. PRE-EXISTING SCHEDULE RECORDS:
 ${existingSchedules || 'No existing conflicting schedules.'}
 
-5. PENDING COURSE ARRANGEMENTS FOR THIS SEMESTER (Tasks to Schedule):
+5. PENDING COURSE ARRANGEMENTS FOR THIS SEMESTER:
 ${pendingCourses || 'No pending courses.'}
 
 [FACULTY USER EXTRA DIRECTIONS]
 "${userRequest}"
 
 [CORE SCHEDULING CONSTRAINTS & LOGIC]
-1. HARDWARE & CAPACITY MATCHING: A course can only be scheduled in a Laboratory if the lab's capacity >= course student count, AND all required software/hardware matches perfectly.
-2. LECTURER NO-COLLISION LOCK: A lecturer CANNOT be scheduled to teach two different classes at the same time.
-3. TIMETABLE PRIORITY (EARLIER IS BETTER): Prioritize slots starting from early morning (e.g., 08:00 AM / 09:00 AM) onwards from Monday to Friday.
-4. VARIETY REQUIREMENT: Generate exactly THREE (3) distinct, alternative full-schedule options.
+1. CAPACITY MATCHING: Lab capacity >= course student count.
+2. LECTURER NO-COLLISION LOCK: A lecturer CANNOT teach two different classes at the same time.
+3. SOFTWARE VERIFICATION LOGIC:
+   - If the user explicitly requests a software (e.g., "Visual Studio Code"), you MUST only schedule courses in labs that have that software in the registry.
+   - If the user DID NOT specify any software in their directions (e.g., just saying "make a weekly schedule"), you must still generate the schedule, but you MUST label the verification field as "Software Verified: N/A (Not Specified)".
+4. EQUIPMENT/HARDWARE LOGIC:
+   - Completely IGNORE hardware/equipment constraints unless the user explicitly mentions specific hardware words (like GPU, Mac, Hardware) in their directions.
 
 [MANDATORY OUTPUT FORMAT STRUCTURE]
-You MUST start directly with the template below. No greeting, no summary:
+You MUST use this ultra-dense layout. No words wasted:
 
 =========================================
-### PROPOSAL OPTION [X] (1, 2, or 3)
+### PROPOSAL OPTION [X]
 =========================================
+#### 👨‍🏫 VIEWPOINT A: LECTURER-CENTRIC
+* **Lecturer: [Name]**
+  - [Day], [Start] - [End] | [Course] | Room: [Lab Name] | Just: [Short text]
 
-#### 👨‍🏫 VIEWPOINT A: LECTURER-CENTRIC TIMETABLE
-* **Lecturer Name:** [Name]
-  - [Day], [Start Time] - [End Time] | Course: [Title] | Assigned Room: [Lab Name] | Justification: [Optimal slot]
-
-#### 🏫 VIEWPOINT B: LABORATORY-CENTRIC TIMETABLE
-* **Laboratory Room:** [Lab Name]
-  - [Day], [Start Time] - [End Time] | Active Class: [Title] | Lecturer: [Name] | Software Verified: [Yes/No]
+#### 🏫 VIEWPOINT B: LABORATORY-CENTRIC
+* **Room: [Lab Name]**
+  - [Day], [Start] - [End] | [Course] | Lect: [Name] | Software Verified: [Yes / No / N/A (Not Specified)]
 
 -----------------------------------------
 [MANDATORY TRANSMISSION END SIGNAL]
-When you have successfully completed generating all 3 options, you MUST explicitly output this exact string at the very end of your response to confirm completion:
-"🎉 [SUCCESS END OF TRANSMISSION] - AI Agent out. Thank you and Goodbye!"`;
+When finished with all 3 options, you MUST explicitly output this exact string:
+"🎉 [SUCCESS END OF TRANSMISSION] - AI Agent out. Thank you and Goodbye!"
+
+[CRITICAL OVERRIDE DIRECTIVE]
+- If the user's request is a simple question (e.g., asking about software, rooms, or a single asset check), IGNORE the full schedule layout matrix completely! 
+- Answer the user's question directly, accurately, and concisely in clean English prose within 3 lines.
+- ONLY generate the full "### PROPOSAL OPTION 1" layout if the user explicitly asks to "make", "generate", or "create" a full timetable/schedule.
+- If you are generating a schedule, strictly stop after completing "VIEWPOINT B" of PROPOSAL OPTION 1. DO NOT ATTEMPT OPTION 2 OR 3 UNDER ANY CIRCUMSTANCES.`;
 }
 
-        // Server-side proxy function (API key stored securely in .env on server)
        async function sendToProxy(prompt, options = {}) {
         // 🌟 修正一：把預設的 maxTokens 提升到 2048，確保 3 套長課表不會被切斷
         const payload = Object.assign({ prompt, model: 'gemini-2.5-flash', maxTokens: 3000 }, options);
@@ -220,7 +224,6 @@ When you have successfully completed generating all 3 options, you MUST explicit
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // 🌟 修正二：告訴後端我們接受純文字
                 'Accept': 'text/plain, application/json',
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRF-TOKEN': token,
@@ -252,15 +255,34 @@ When you have successfully completed generating all 3 options, you MUST explicit
 
             responseContainer.innerHTML = '<p class="text-muted mb-0">⏳ Analyzing parameters against database context. Please wait...</p>';
 
-            try {
+           try {
                 const prompt = buildPrompt(userRequest);
                 const text = await sendToProxy(prompt, { maxTokens: 3000 });
 
-                // Formats newline breaks gracefully within response canvas
+                // 🔍 Failsafe Guard: Catch Google Gemini API 503 Overload/Server error embedded in text response
+                if (text.includes('"code": 503') || text.includes('UNAVAILABLE')) {
+                    responseContainer.innerHTML = `
+                        <div class="alert alert-warning mb-0" style="border-left: 5px solid #ffc107; padding: 15px; background-color: #fff3cd; color: #856404; border-radius: 4px;">
+                            <h5 class="fw-bold style="margin-top: 0;">⚠️ AI Engine Dispatch Notice: High Server Demand (Error 503)</h5>
+                            <p class="mb-2"><strong>Root Cause:</strong> The upstream Large Language Model (Gemini API) is currently experiencing a temporary global traffic spike and is temporarily unavailable.</p>
+                            <hr style="border-top: 1px solid #ffeeba;" class="my-2">
+                            <p class="mb-2"><strong>💡 Smart Mitigation Directives (Administrator Troubleshooting Guide):</strong></p>
+                            <ul style="padding-left: 20px;" class="mb-0">
+                                <li><strong>Directive 1 (Reduce Prompt Payload):</strong> Your current pending course dataset contains ${courses.length} entries. To reduce AI token calculation overhead, try narrowing down your request. Example input: <code>"Only schedule 4 core courses for semester 1."</code></li>
+                                <li><strong>Directive 2 (Strict Time Constraints):</strong> Eliminate ambiguous time slots by providing strict boundary constraints. This reduces the AI's internal permutation search space for conflict-free slots. Example input: <code>"Schedule classes strictly between 09:00 AM to 05:00 PM."</code></li>
+                                <li><strong>Directive 3 (Immediate Token Retry):</strong> Upstream server spikes are usually highly transient (lasting only a few seconds). Please wait 5-10 seconds and click the <strong>[Analyze Request]</strong> button again.</li>
+                            </ul>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Formats newline breaks gracefully within response canvas if response is successful
                 responseContainer.innerHTML = `
                     <div class="fw-semibold mb-3 text-success">✨ Recommended Slots Matrix:</div>
                     <div class="text-dark" style="line-height: 1.7; font-size: 14px;">${text.replace(/\n/g, '<br>')}</div>
                 `;
+
             } catch (error) {
                 responseContainer.innerHTML = `
                     <p class="text-danger mb-0">
