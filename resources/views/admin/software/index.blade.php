@@ -52,7 +52,7 @@
                                 <td>{{ $statuses[$item->status] ?? 'Unknown' }}</td>
                                 <td>
                                     <a href="{{ url('/admin/software/' . $item->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
-                                    <form action="{{ url('/admin/software/' . $item->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this software item?');">
+                                    <form action="{{ url('/admin/software/' . $item->id) }}" method="POST" class="d-inline-block delete-form">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-danger">Delete</button>

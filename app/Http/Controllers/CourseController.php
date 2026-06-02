@@ -24,6 +24,7 @@ class CourseController extends Controller
     {
         $request->validate([
             'course_name' => 'required|string|max:255',
+            'hours' => 'required|integer|min:0',
             'user_id' => 'nullable|exists:users,id',
             'description' => 'nullable|string',
         ]);
@@ -43,6 +44,7 @@ class CourseController extends Controller
     {
         $request->validate([
             'course_name' => 'required|string|max:255',
+            'hours' => 'required|integer|min:0',
             'user_id' => 'nullable|exists:users,id',
             'description' => 'nullable|string',
         ]);

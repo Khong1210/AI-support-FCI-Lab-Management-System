@@ -38,7 +38,7 @@
                                     <a href="{{ url('/admin/semesters/' . $semester->id . '/edit') }}" class="btn btn-outline-primary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <form action="{{ url('/admin/semesters/' . $semester->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this semester?');">
+                                    <form action="{{ url('/admin/semesters/' . $semester->id) }}" method="POST" class="d-inline-block delete-form">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-outline-danger">

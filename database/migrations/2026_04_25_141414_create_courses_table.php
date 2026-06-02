@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null');
             $table->string('course_name');
+            $table->integer('hours')->default(0);
             $table->text('description')->nullable();
             $table->timestamps();
         });

@@ -48,13 +48,25 @@
                             @error('date')<span class="invalid-feedback">{{ $message }}</span>@enderror
                         </div>
                         <div class="col-md-4 form-group">
-                            <label>Start Time</label>
-                            <input type="time" name="start_time" class="form-control @error('start_time') is-invalid @enderror" value="{{ old('start_time') }}" required>
+                            <label>Start Time (08:00 - 18:00)</label>
+                            <select name="start_time" class="custom-select @error('start_time') is-invalid @enderror" required>
+                                <option value="">Select Time</option>
+                                @for($h = 8; $h <= 18; $h++)
+                                    @php $time = sprintf('%02d:00', $h); @endphp
+                                    <option value="{{ $time }}" {{ old('start_time') == $time ? 'selected' : '' }}>{{ $time }}</option>
+                                @endfor
+                            </select>
                             @error('start_time')<span class="invalid-feedback">{{ $message }}</span>@enderror
                         </div>
                         <div class="col-md-4 form-group">
-                            <label>End Time</label>
-                            <input type="time" name="end_time" class="form-control @error('end_time') is-invalid @enderror" value="{{ old('end_time') }}" required>
+                            <label>End Time (08:00 - 18:00)</label>
+                            <select name="end_time" class="custom-select @error('end_time') is-invalid @enderror" required>
+                                <option value="">Select Time</option>
+                                @for($h = 8; $h <= 18; $h++)
+                                    @php $time = sprintf('%02d:00', $h); @endphp
+                                    <option value="{{ $time }}" {{ old('end_time') == $time ? 'selected' : '' }}>{{ $time }}</option>
+                                @endfor
+                            </select>
                             @error('end_time')<span class="invalid-feedback">{{ $message }}</span>@enderror
                         </div>
                     </div>

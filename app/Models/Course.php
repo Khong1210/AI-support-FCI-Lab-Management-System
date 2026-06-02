@@ -9,6 +9,7 @@ class Course extends Model
     protected $fillable = [
         'user_id', // FK for the lecturer in charge
         'course_name',
+        'hours',
         'description',
     ];
 

@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     @stack('styles')
 </head>
-<body class="hold-transition">
+<body class="hold-transition sidebar-mini">
 <div class="wrapper">
     <aside class="main-sidebar">
         <a href="{{ url('/admin') }}" class="brand-link">
@@ -22,6 +22,12 @@
 
         <div class="sidebar">
             <ul class="nav nav-sidebar flex-column">
+                <li class="nav-item">
+                    <a href="#" class="nav-link bg-secondary text-white" data-widget="pushmenu" style="cursor: pointer; border-radius: 4px; margin-top: 5px; margin-bottom: 5px;">
+                        <i class="nav-icon fas fa-bars"></i>
+                        <p>Toggle Sidebar</p>
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a href="{{ url('/admin') }}" class="nav-link {{ request()->is('admin') && !request()->is('admin/*') ? 'active' : '' }}">
                         <i class="nav-icon fas fa-tachometer-alt"></i>
@@ -166,6 +172,46 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteForms = document.querySelectorAll('.delete-form');
+    deleteForms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            Swal.fire({
+              title: "Are you sure?",
+              text: "You won't be able to revert this!",
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonColor: "#3085d6",
+              cancelButtonColor: "#d33",
+              confirmButtonText: "Yes, delete it!"
+            }).then((result) => {
+              if (result.isConfirmed) {
+                Swal.fire({
+                  title: "Deleted!",
+                  text: "Your record is being deleted.",
+                  icon: "success",
+                  showConfirmButton: false,
+                  timer: 1000
+                });
+                setTimeout(() => form.submit(), 1000);
+              }
+            });
+        });
+    });
+
+    // Main Sidebar Toggle Logic with Event Delegation
+    document.addEventListener('click', function(e) {
+        const pushmenu = e.target.closest('[data-widget="pushmenu"]');
+        if (pushmenu) {
+            e.preventDefault();
+            document.body.classList.toggle('sidebar-collapse');
+        }
+    });
+});
+</script>
 @stack('scripts')
 </body>
 </html>

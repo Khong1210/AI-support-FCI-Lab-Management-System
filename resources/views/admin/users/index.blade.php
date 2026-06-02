@@ -105,7 +105,7 @@
                                     <a href="{{ url('/admin/users/' . $user->id . '/edit') }}" class="btn btn-outline-primary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <form action="{{ url('/admin/users/' . $user->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                    <form action="{{ url('/admin/users/' . $user->id) }}" method="POST" class="d-inline-block delete-form">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-outline-danger btn-sm">

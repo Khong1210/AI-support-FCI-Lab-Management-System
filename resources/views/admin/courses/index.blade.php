@@ -21,6 +21,7 @@
                     <tr>
                         <th style="width: 10%">ID</th>
                         <th>Name</th>
+                        <th>Hours</th>
                         <th>Lecturer in Charge</th>
                         <th>Description</th>
                         <th style="width: 20%">Actions</th>
@@ -31,6 +32,7 @@
                         <tr>
                             <td><span class="badge badge-secondary">{{ $course->id }}</span></td>
                             <td><strong>{{ $course->course_name }}</strong></td>
+                            <td>{{ $course->hours }}</td>
                             <td>
                                 @if($course->user)
                                     <i class="fas fa-user text-info mr-1"></i> {{ $course->user->username }}
@@ -44,7 +46,7 @@
                                     <a href="{{ url('/admin/courses/' . $course->id . '/edit') }}" class="btn btn-outline-primary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <form action="{{ url('/admin/courses/' . $course->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this course?');">
+                                    <form action="{{ url('/admin/courses/' . $course->id) }}" method="POST" class="d-inline-block delete-form">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-outline-danger">

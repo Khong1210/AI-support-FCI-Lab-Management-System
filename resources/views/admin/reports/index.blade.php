@@ -80,7 +80,7 @@
                                     <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-check"></i> Resolve</button>
                                 </form>
                             @endif
-                            <form action="{{ url('/admin/reports/' . $report->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this report?');">
+                            <form action="{{ url('/admin/reports/' . $report->id) }}" method="POST" class="d-inline-block delete-form">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>

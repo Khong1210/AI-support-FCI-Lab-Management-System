@@ -78,7 +78,7 @@
                                     <button type="submit" class="btn btn-sm btn-warning"><i class="fas fa-times"></i> Reject</button>
                                 </form>
                             @endif
-                            <form action="{{ url('/admin/bookings/' . $booking->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this booking request?');">
+                            <form action="{{ url('/admin/bookings/' . $booking->id) }}" method="POST" class="d-inline-block delete-form">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>

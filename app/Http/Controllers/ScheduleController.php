@@ -272,8 +272,8 @@ class ScheduleController extends Controller
             'course_id' => 'required|exists:courses,id',
             'day_of_week' => 'required|string',
             'date' => 'required|date',
-            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-9]|20):00$/'],
-            'end_time' => ['required', 'regex:/^(0[8-9]|1[0-9]|20):00$/', 'after:start_time'],
+            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/'],
+            'end_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/', 'after:start_time'],
         ]);
 
         Schedule::create($request->all());
@@ -297,8 +297,8 @@ class ScheduleController extends Controller
             'course_id' => 'required|exists:courses,id',
             'day_of_week' => 'required|string',
             'date' => 'required|date',
-            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-9]|20):00$/'],
-            'end_time' => ['required', 'regex:/^(0[8-9]|1[0-9]|20):00$/', 'after:start_time'],
+            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/'],
+            'end_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/', 'after:start_time'],
         ]);
 
         // We only take the first 5 chars if it has seconds.

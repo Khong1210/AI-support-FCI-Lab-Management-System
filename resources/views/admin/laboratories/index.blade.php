@@ -83,7 +83,7 @@
                                     <a href="{{ url('/admin/laboratories/' . $laboratory->id . '/edit') }}" class="btn btn-outline-primary">
                                         <i class="fas fa-edit"></i> Edit
                                     </a>
-                                    <form action="{{ url('/admin/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this laboratory?');">
+                                    <form action="{{ url('/admin/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block delete-form">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-outline-danger">

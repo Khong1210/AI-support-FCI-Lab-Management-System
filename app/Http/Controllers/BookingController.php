@@ -50,8 +50,8 @@ class BookingController extends Controller
             'lab_id' => 'required|exists:laboratories,id',
             'purpose' => 'required|string|max:255',
             'date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/'],
+            'end_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/', 'after:start_time'],
         ]);
 
         Booking::create([
