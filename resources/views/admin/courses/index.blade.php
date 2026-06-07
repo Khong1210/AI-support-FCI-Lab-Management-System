@@ -5,69 +5,74 @@
 @section('breadcrumb', 'Courses')
 
 @section('content')
-<div class="card card-primary card-outline">
-    <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-list mr-2"></i>Course List</h3>
-        <div class="card-tools">
-            <a href="{{ url('/admin/courses/add') }}" class="btn btn-sm btn-success">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title">Course List</h3>
+            <a href="{{ url('/admin/courses/add') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Add Course
             </a>
         </div>
-    </div>
-    <div class="card-body table-responsive p-0">
-        @if ($courses->count())
-            <table class="table table-hover table-striped">
-                <thead>
-                    <tr>
-                        <th style="width: 10%">ID</th>
-                        <th>Name</th>
-                        <th>Hours</th>
-                        <th>Lecturer in Charge</th>
-                        <th>Description</th>
-                        <th style="width: 20%">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($courses as $course)
+        <div class="card-body">
+            <form method="GET" class="form-inline mb-3">
+                <div class="form-group mr-2">
+                    <input type="search" name="search" class="form-control" placeholder="Search course" value="{{ request('search') }}">
+                </div>
+                <div class="form-group mr-2">
+                    <select name="user_id" class="form-control">
+                        <option value="">All Lecturers</option>
+                        @foreach($lecturers ?? [] as $lecturer)
+                            <option value="{{ $lecturer->id }}" {{ request('user_id') == $lecturer->id ? 'selected' : '' }}>
+                                {{ $lecturer->username }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <button class="btn btn-secondary">Filter</button>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered">
+                    <thead>
                         <tr>
-                            <td><span class="badge badge-secondary">{{ $course->id }}</span></td>
-                            <td><strong>{{ $course->course_name }}</strong></td>
-                            <td>{{ $course->hours }}</td>
-                            <td>
-                                @if($course->user)
-                                    <i class="fas fa-user text-info mr-1"></i> {{ $course->user->username }}
-                                @else
-                                    <span class="text-muted">None</span>
-                                @endif
-                            </td>
-                            <td>{{ Str::limit($course->description, 50) }}</td>
-                            <td>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ url('/admin/courses/' . $course->id . '/edit') }}" class="btn btn-outline-primary">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Hours</th>
+                            <th>Lecturer in Charge</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($courses as $course)
+                            <tr>
+                                <td>{{ $course->id }}</td>
+                                <td>{{ $course->course_name }}</td>
+                                <td>{{ $course->hours }}</td>
+                                <td>
+                                    @if($course->user)
+                                        {{ $course->user->username }}
+                                    @else
+                                        -
+                                    @endif
+                                </td>
+                                <td>{{ Str::limit($course->description, 50) }}</td>
+                                <td>
+                                    <a href="{{ url('/admin/courses/' . $course->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
                                     <form action="{{ url('/admin/courses/' . $course->id) }}" method="POST" class="d-inline-block delete-form">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                                     </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @else
-            <div class="alert alert-info m-3">
-                <i class="fas fa-info-circle mr-2"></i>
-                <strong>No courses found.</strong> No records are available yet.
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center">No courses found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
-        @endif
+        </div>
     </div>
-    <div class="card-footer text-muted">
-        <small>Total Courses: {{ $courses->count() }}</small>
-    </div>
-</div>
 @endsection

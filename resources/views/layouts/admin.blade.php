@@ -212,7 +212,7 @@
     .sidebar-collapse .content-wrapper,
     .sidebar-collapse .main-header,
     .sidebar-collapse .main-footer {
-        margin-left: 64px !important; 
+        margin-left: 40px !important; 
     }
     
     .sidebar-collapse .brand-link-text span,
@@ -487,6 +487,26 @@ document.addEventListener('DOMContentLoaded', function() {
             document.body.classList.toggle('sidebar-collapse');
         }
     });
+});
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // 找到你的側邊欄切換漢堡按鈕 (請根據你實際的 class 名稱調整，例如 .sidebar-toggle-btn)
+    const toggleBtn = document.querySelector('.sidebar-toggle-btn');
+    
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function() {
+            // 給一點小延遲，確保 class 已經切換完畢
+            setTimeout(() => {
+                // 檢查現在 body 是否含有縮小的 class
+                if (document.body.classList.contains('sidebar-collapse') || document.documentElement.classList.contains('sidebar-collapse')) {
+                    localStorage.setItem('sidebar-state', 'collapsed'); // 記住縮小了
+                } else {
+                    localStorage.setItem('sidebar-state', 'expanded');  // 記住展開了
+                }
+            }, 100);
+        });
+    }
 });
 </script>
 @stack('scripts')

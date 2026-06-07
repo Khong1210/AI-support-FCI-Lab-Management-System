@@ -15,6 +15,7 @@ class Schedule extends Model
         'date',
         'start_time',
         'end_time',
+        'is_recurring',
     ];
 
     public function semester()

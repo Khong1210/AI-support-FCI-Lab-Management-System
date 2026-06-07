@@ -15,7 +15,7 @@
     .schedule-matrix th, 
     .schedule-matrix td {
         border: 1px solid #dee2e6;
-        padding: 2px;
+        padding: 0px;
         text-align: left;
         vertical-align: top;
     }
@@ -27,7 +27,7 @@
         font-size: 0.8rem;
     }
     .schedule-matrix td {
-        height: 38px;
+        height: 40px;
         background-color: #ffffff;
     }
     .schedule-matrix .time-col {
@@ -41,10 +41,13 @@
     
     .schedule-block {
         border: 1px solid #dee2e6;
-        padding: 3px 5px;
+        padding: 6px 8px;
         margin-bottom: 0px;
         font-size: 0.7rem;
-        line-height: 1.15;
+        line-height: 1.25;
+        display: flex;
+        flex-direction: column;
+        min-height: 100%; 
         height: 100%;
         position: relative;
         overflow: hidden;
@@ -54,11 +57,17 @@
         color: #111;
         font-size: 0.75rem;
         margin-bottom: 1px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        
     }
     .schedule-block span {
         display: block;
         color: #555;
         font-size: 0.65rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     
     .schedule-block.enroll {
@@ -136,11 +145,27 @@
     }
     
     .filter-bar {
-        background-color: #f4f6f9;
+        background-color: transparent;
+        border: none;
+        border-bottom: 1px solid #dee2e6;
+        margin-bottom: 20px;
+        border-radius: 0;
+             background-color: #f4f6f9;
         border: 1px solid #dee2e6;
         padding: 10px 15px;
-        margin-bottom: 15px;
-        border-radius: 4px;
+    }
+    
+    .filter-bar .form-control {
+        height: 36px !important;
+        line-height: 1.5 !important;
+        padding: 6px 12px !important;
+        font-size: 0.87rem !important;
+    }
+
+    .filter-bar .btn-filter {
+        height: 36px;
+        padding: 6px 16px;
+        font-size: 0.87rem;
     }
 </style>
 @endpush
@@ -151,19 +176,8 @@
         <input type="hidden" name="date" value="{{ $currentDate->format('Y-m-d') }}">
         
         <div class="d-flex align-items-center mr-4">
-            <label class="mr-2 mb-0 font-weight-bold text-nowrap" for="lab_id">Laboratory:</label>
-            <select name="lab_id" id="lab_id" class="form-control form-control-sm" style="width: auto;" onchange="this.form.submit()">
-                @foreach($laboratories as $lab)
-                    <option value="{{ $lab->id }}" {{ $selectedLabId == $lab->id ? 'selected' : '' }}>
-                        {{ $lab->lab_name }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-
-        <div class="d-flex align-items-center">
             <label class="mr-2 mb-0 font-weight-bold text-nowrap" for="semester_id">Semester:</label>
-            <select name="semester_id" id="semester_id" class="form-control form-control-sm mr-2" style="width: auto;" onchange="this.form.submit()">
+            <select name="semester_id" id="semester_id" class="form-control form-control-sm" style="width: auto;" onchange="this.form.submit()">
                 <option value="">All Semesters</option>
                 @foreach($semesters as $semester)
                     <option value="{{ $semester->id }}" {{ $selectedSemesterId == $semester->id ? 'selected' : '' }}>
@@ -173,45 +187,93 @@
             </select>
         </div>
 
+        <div class="d-flex align-items-center">
+            <label class="mr-2 mb-0 font-weight-bold text-nowrap" for="view_target">Schedule View:</label>
+            <select name="view_target" id="view_target" class="form-control form-control-sm" style="width: auto;" onchange="this.form.submit()">
+                <option value="">-- Select Lab or Lecturer --</option>
+                
+                <optgroup label="Laboratories">
+                    @foreach($laboratories as $lab)
+                        <option value="lab_{{ $lab->id }}" {{ ($selectedLabId && $selectedLabId == $lab->id) ? 'selected' : '' }}>
+                            🏢 {{ $lab->lab_name }}
+                        </option>
+                    @endforeach
+                </optgroup>
+
+                <optgroup label="Lecturers">
+                    @foreach($lecturers as $lecturer)
+                        <option value="lec_{{ $lecturer->id }}" {{ (($selectedLecturerId ?? null) && $selectedLecturerId == $lecturer->id) ? 'selected' : '' }}>
+                            👨‍🏫 {{ $lecturer->username }}
+                        </option>
+                    @endforeach
+                </optgroup>
+            </select>
+        </div>
+
         @if($selectedSemesterId && $selectedSemester)
-            <div class="d-flex align-items-center ml-3 pl-3 border-left">
-                <span class="text-muted small">
-                    <strong>{{ $semesterStartDate->format('M d, Y') }}</strong> to <strong>{{ $semesterEndDate->format('M d, Y') }}</strong>
-                </span>
-                <a href="{{ url('/admin/schedules?date=' . $currentDate->format('Y-m-d') . ($selectedLabId ? '&lab_id=' . $selectedLabId : '')) }}" class="btn btn-sm btn-outline-secondary ml-3 py-0">Clear</a>
+            <div class="d-flex align-items-center ml-auto small text-muted">
+                <strong>{{ $semesterStartDate->format('M d, Y') }}</strong> to <strong>{{ $semesterEndDate->format('M d, Y') }}</strong>
+                @php
+                    $resetParams = [];
+                    if (!empty($selectedLabId)) { $resetParams['view_target'] = 'lab_' . $selectedLabId; }
+                    elseif (!empty($selectedLecturerId)) { $resetParams['view_target'] = 'lec_' . $selectedLecturerId; }
+                    $resetParams['date'] = $currentDate->format('Y-m-d');
+                @endphp
+                <a href="{{ url('/admin/schedules?' . http_build_query($resetParams)) }}" class="btn btn-sm btn-outline-secondary ml-3 py-0">Reset</a>
             </div>
         @endif
     </form>
 </div>
 
 <div class="row">
-    <!-- LEFT COLUMN: 75% via col-lg-9 -->
     <div class="col-lg-9 col-md-8 transition-all" id="schedule-main-col" style="transition: all 0.3s ease;">
         <div class="card card-primary card-outline shadow-sm h-100">
             <div class="card-header d-flex align-items-center p-2">
                 <h3 class="card-title m-0 font-weight-bold ml-2">
-                    Weekly Schedule Matrix ({{ $selectedLab->lab_name ?? 'No room selected' }})
+                    Weekly Schedule Matrix 
+                    @if(isset($selectedLecturer) && $selectedLecturer)
+                        (Lecturer: {{ $selectedLecturer->username }})
+                    @else
+                        ({{ $selectedLab->lab_name ?? 'All Rooms' }})
+                    @endif
                 </h3>
                 <div class="ml-auto d-flex align-items-center">
                     <button type="button" class="btn btn-sm btn-outline-secondary mr-2" id="toggle-sidebar-btn" title="Toggle Sidebar">
                         <i class="fas fa-expand-arrows-alt"></i>
                     </button>
                     <a href="{{ url('/admin/schedules/add') }}" class="btn btn-sm btn-primary mr-2"><i class="fas fa-plus"></i> Add</a>
+                    
                     <div class="btn-group btn-group-sm">
+                        @php
+                            // 重新整理傳遞參數，網址只有 semester_id 和合併後的 view_target
+                            $linkParams = [];
+                            if (!empty($selectedSemesterId)) { $linkParams['semester_id'] = $selectedSemesterId; }
+                            
+                            if (!empty($selectedLabId)) { $linkParams['view_target'] = 'lab_' . $selectedLabId; }
+                            elseif (!empty($selectedLecturerId)) { $linkParams['view_target'] = 'lec_' . $selectedLecturerId; }
+                        @endphp
+
                         @if($selectedSemesterId && !($canGoPrevWeek ?? true))
                             <a href="#" class="btn btn-default disabled"><i class="fas fa-chevron-left"></i> Prev</a>
                         @else
-                            <a href="{{ url('/admin/schedules?date=' . $prevWeek) }}" class="btn btn-default"><i class="fas fa-chevron-left"></i> Prev</a>
+                            <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => $prevWeek]))) }}" class="btn btn-default">
+                                <i class="fas fa-chevron-left"></i> Prev
+                            </a>
                         @endif
-                        <a href="{{ url('/admin/schedules' . ($selectedSemesterId || $selectedLabId ? '?' . http_build_query(array_filter(['semester_id' => $selectedSemesterId, 'lab_id' => $selectedLabId])) : '')) }}" class="btn btn-default active">Current</a>
+
+                        <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => \Carbon\Carbon::now()->format('Y-m-d')]))) }}" class="btn btn-default">Current</a>
+
                         @if($selectedSemesterId && !($canGoNextWeek ?? true))
                             <a href="#" class="btn btn-default disabled">Next <i class="fas fa-chevron-right"></i></a>
                         @else
-                            <a href="{{ url('/admin/schedules?date=' . $nextWeek) }}" class="btn btn-default">Next <i class="fas fa-chevron-right"></i></a>
+                            <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => $nextWeek]))) }}" class="btn btn-default">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </a>
                         @endif
                     </div>
                 </div>
             </div>
+            
             <div class="card-body p-0 table-responsive">
                 <table class="schedule-matrix m-0">
                     <thead>
@@ -242,27 +304,30 @@
                                         @continue
                                     @endif
 
-                                    <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }}" rowspan="{{ $slot['rowspan'] }}">
+                                    <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }} {{ $slot['type'] === 'enroll' ? 'bg-enroll-td' : '' }} {{ $slot['type'] === 'booking' ? 'bg-booking-td' : '' }} {{ $slot['type'] === 'maintenance' ? 'bg-maintenance-td' : '' }}" rowspan="{{ $slot['rowspan'] }}" style="padding: 0;">
                                         @if($slot['type'] === 'none')
                                             <div class="schedule-block none"></div>
+                                            
                                         @elseif($slot['type'] === 'maintenance')
                                             @php
                                                 $maintenanceStart = is_string($slot['data']) ? $timeSlot : substr($slot['data']->start_time, 0, 5);
                                                 $maintenanceEnd = is_string($slot['data']) ? '' : substr($slot['data']->end_time, 0, 5);
                                             @endphp
-                                            <div class="schedule-block maintenance">
+                                            <div class="schedule-block maintenance" style="height: 100%; border: none;">
                                                 <strong>Maintenance / Closed</strong>
                                                 <span>{{ $maintenanceStart }} - {{ $maintenanceEnd }}</span>
                                                 <span>{{ $selectedLab->lab_name ?? 'Room' }}</span>
                                             </div>
+                                            
                                         @elseif($slot['type'] === 'booking')
-                                            <div class="schedule-block booking">
+                                            <div class="schedule-block booking" style="height: 100%; border: none;">
                                                 <strong>{{ $slot['data']->purpose }}</strong>
                                                 <span>{{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}</span>
                                                 <span>{{ $selectedLab->lab_name ?? 'Room' }}</span>
                                             </div>
+                                            
                                         @elseif($slot['type'] === 'enroll')
-                                            <div class="schedule-block enroll">
+                                            <div class="schedule-block enroll" style="height: 100%; border: none;">
                                                 <strong>{{ $slot['data']->course->course_name ?? 'Program' }}</strong>
                                                 <span>{{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}</span>
                                                 <span>Lecturer: {{ $slot['data']->course->user->username ?? 'None' }}</span>
@@ -286,18 +351,33 @@
     <div class="col-lg-3 col-md-4" id="schedule-sidebar-col" style="transition: all 0.3s ease;">
         
         <!-- Calendar Widget -->
-        <div class="card card-outline shadow-sm mb-3">
+      <div class="card card-outline shadow-sm mb-3">
             <div class="card-header border-0 d-flex justify-content-between align-items-center p-2 bg-light">
                 @php
-                    $querySuffix = http_build_query(array_filter([
-                        'semester_id' => $selectedSemesterId,
-                        'lab_id' => $selectedLabId,
-                    ]));
-                    $qs = $querySuffix ? '&' . $querySuffix : '';
+                    // 建立乾淨的篩選參數陣列
+                    $linkParams = [];
+                    if (!empty($selectedSemesterId)) { 
+                        $linkParams['semester_id'] = $selectedSemesterId; 
+                    }
+                    
+                    // 【核心修正】小月曆改用二合一的 view_target 來鎖定目前的視角 (Lab 或是 Lecturer)
+                    if (!empty($selectedLabId)) { 
+                        $linkParams['view_target'] = 'lab_' . $selectedLabId; 
+                    } elseif (!empty($selectedLecturerId)) { 
+                        $linkParams['view_target'] = 'lec_' . $selectedLecturerId; 
+                    }
+
+                    // 使用 http_build_query 打包，前面不手動拼接 ?date=
+                    $qs = !empty($linkParams) ? '&' . http_build_query($linkParams) : '';
                 @endphp
-                <a href="{{ url('/admin/schedules?date=' . $prevMonth) }}" class="btn btn-sm btn-default py-0 px-2"><i class="fas fa-chevron-left"></i></a>
+                
+                <a href="{{ url('/admin/schedules?date=' . (Str::contains($prevMonth, '&') ? $prevMonth : $prevMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
                 <strong style="font-size: 0.9rem;">{{ $monthName }}</strong>
-                <a href="{{ url('/admin/schedules?date=' . $nextMonth) }}" class="btn btn-sm btn-default py-0 px-2"><i class="fas fa-chevron-right"></i></a>
+                <a href="{{ url('/admin/schedules?date=' . (Str::contains($nextMonth, '&') ? $nextMonth : $nextMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
             </div>
             <div class="card-body p-0">
                 <table class="mini-calendar m-0">

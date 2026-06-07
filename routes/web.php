@@ -78,6 +78,7 @@ use App\Http\Controllers\SemesterController;
 Route::get('/admin/schedules', [ScheduleController::class, 'index']);
 Route::get('/admin/schedules/add', [ScheduleController::class, 'create']);
 Route::get('/admin/schedules/create', [ScheduleController::class, 'create']);
+Route::get('/admin/schedules/check-occupied', [ScheduleController::class, 'getOccupiedSlots']);
 Route::post('/admin/schedules', [ScheduleController::class, 'store']);
 Route::get('/admin/schedules/{schedule}/edit', [ScheduleController::class, 'edit']);
 Route::put('/admin/schedules/{schedule}', [ScheduleController::class, 'update']);
