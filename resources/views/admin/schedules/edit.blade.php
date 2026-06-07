@@ -235,78 +235,42 @@
         .catch(() => []);
     }
 
-    function updateStartTimeOptions() {
-        const dateInput = document.getElementById('schedule-date');
-        const labSelect = document.getElementById('lab-id-select');
-        const courseSelect = document.getElementById('course-select');
-        const startSelect = document.getElementById('start-time-select');
-        const excludeIdEl = document.getElementById('exclude-schedule-id');
+   // 修改这个函数，直接调用你刚才在 Controller 写好的新方法
+function updateStartTimeOptions() {
+    const dateInput = document.getElementById('schedule-date');
+    const labSelect = document.getElementById('lab-id-select');
+    const startSelect = document.getElementById('start-time-select');
+    const excludeIdEl = document.getElementById('exclude-schedule-id'); // 确保编辑时排除自己
 
-        if (!dateInput || !labSelect || !startSelect) return;
+    if (!dateInput || !labSelect || !startSelect) return;
 
-        const dateValue = dateInput.value;
-        const labId = labSelect.value;
-        const excludeId = excludeIdEl ? excludeIdEl.value : '';
-        const currentStartValue = startSelect.value;
+    const dateValue = dateInput.value;
+    const labId = labSelect.value;
+    const excludeId = excludeIdEl ? excludeIdEl.value : '';
+    const currentStartValue = startSelect.value;
 
-        // Clear all options except placeholder
-        startSelect.innerHTML = '<option value="">Select Time</option>';
+    if (!dateValue || !labId) return;
 
-        if (!dateValue || !labId) {
-            return;
-        }
-
-        // Get course hours for duration calculation
-        let durationMinutes = 60;
-        if (courseSelect) {
-            const hours = parseInt(courseSelect.dataset.hours || '1', 10);
-            durationMinutes = hours * 60;
-        }
-
-        // Fetch conflicts and populate options
-        fetchConflicts(dateValue, labId, excludeId).then(conflicts => {
-            const occupiedSlots = conflicts.map(s => ({
-                start: parseTimeToMinutes(s.start_time),
-                end: parseTimeToMinutes(s.end_time)
-            }));
-
-            let hasAvailable = false;
-
-            for (let h = 8; h <= 18; h++) {
-                const timeStr = (h < 10 ? '0' : '') + h + ':00';
-                const candStart = parseTimeToMinutes(timeStr);
-                const candEnd = candStart + durationMinutes;
-
-                const isConflict = occupiedSlots.some(slot => 
-                    isOverlapping(candStart, candEnd, slot.start, slot.end)
-                );
-
+    // 这里调用你刚才 Controller 写的那个能剔除占用时段的方法
+    // 记得在 URL 里加上 exclude_id，这样编辑时就不会把自己算作冲突
+    fetch(`/admin/schedules/get-available-time-slots?date=${dateValue}&laboratory_id=${labId}&exclude_schedule_id=${excludeId}`)
+        .then(res => res.json())
+        .then(availableSlots => {
+            startSelect.innerHTML = '<option value="">Select Time</option>';
+            
+            availableSlots.forEach(time => {
                 const opt = document.createElement('option');
-                opt.value = timeStr;
-
-                if (isConflict) {
-                    opt.textContent = `${timeStr} (Conflict)`;
-                    opt.disabled = true;
-                    opt.classList.add('disabled-slot');
-                    opt.style.cssText = 'background-color:#e9ecef; color:#6c757d;';
-                } else {
-                    opt.textContent = timeStr;
-                    hasAvailable = true;
-                }
-
-                if (!isConflict && currentStartValue === timeStr) {
+                opt.value = time;
+                opt.textContent = time;
+                
+                // 如果是当前编辑的那个原始时间，保持选中
+                if (time === currentStartValue) {
                     opt.selected = true;
                 }
-
                 startSelect.appendChild(opt);
-            }
-
-            const warningEl = document.getElementById('start-time-warning');
-            if (warningEl) {
-                warningEl.textContent = hasAvailable ? '' : 'No available times for this date and lab.';
-            }
+            });
         });
-    }
+}
 
     // ========== AUTO END TIME ==========
     function calculateEndTime() {

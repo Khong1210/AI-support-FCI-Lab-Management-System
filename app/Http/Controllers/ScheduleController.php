@@ -657,26 +657,22 @@ public function getAvailableTimeSlots(Request $request)
 {
     $date = $request->query('date');
     $labId = $request->query('laboratory_id');
+    $excludeId = $request->query('exclude_schedule_id'); // 获取要排除的 ID
 
-    if (!$date || !$labId) return response()->json([]);
-
-    // 1. 获取所有可能的时段 (08:00 到 16:00)
     $allSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
 
-    // 2. 获取该实验室该日期的所有占用记录
     $occupied = \App\Models\Schedule::where('lab_id', $labId)
         ->where('date', $date)
+        ->when($excludeId, function($query) use ($excludeId) {
+            $query->where('id', '!=', $excludeId); // 核心：排除当前正在编辑的记录
+        })
         ->get(['start_time', 'end_time']);
 
-    // 3. 过滤掉被占用的时段
     $availableSlots = array_filter($allSlots, function($time) use ($occupied) {
         foreach ($occupied as $slot) {
             $s = substr($slot->start_time, 0, 5);
             $e = substr($slot->end_time, 0, 5);
-            // 如果这个时间点在某个已占用区间 [start, end) 内，则剔除
-            if ($time >= $s && $time < $e) {
-                return false;
-            }
+            if ($time >= $s && $time < $e) return false;
         }
         return true;
     });
