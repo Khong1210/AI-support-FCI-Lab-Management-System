@@ -3,14 +3,17 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Booking;
 
 class Schedule extends Model
 {
 
     protected $fillable = [
-        'lab_id',    
-        'course_id', 
+        'lab_id',
+        'course_id',
         'semester_id',
+        'booking_id',
+        'schedule_type',
         'day_of_week',
         'date',
         'start_time',
@@ -31,5 +34,10 @@ class Schedule extends Model
     public function course()
     {
         return $this->belongsTo(Course::class, 'course_id');
+    }
+
+    public function booking()
+    {
+        return $this->belongsTo(Booking::class, 'booking_id');
     }
 }

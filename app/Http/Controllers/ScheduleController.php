@@ -6,8 +6,12 @@ use App\Models\Schedule;
 use App\Models\Laboratory;
 use App\Models\Course;
 use App\Models\Semester;
+use App\Models\Booking;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ScheduleController extends Controller
 {
@@ -45,36 +49,49 @@ class ScheduleController extends Controller
             }
         }
 
-        $selectedLecturerId = $request->input('user_id'); 
+        $selectedLab = $selectedLabId ? \App\Models\Laboratory::find($selectedLabId) : null;
         $selectedLecturer = $selectedLecturerId ? \App\Models\User::find($selectedLecturerId) : null;
 
-        $scheduleQuery = Schedule::with(['course', 'semester', 'laboratory'])->where('lab_id', $selectedLabId);
+        // Only load enroll schedules here, because booking/maintenance slots are rendered separately
+        $scheduleQuery = Schedule::with(['course', 'semester', 'laboratory', 'booking'])
+            ->where('schedule_type', 'enroll');
+       
         if ($selectedSemesterId) {
             $selectedSemester = $semesters->where('id', $selectedSemesterId)->first();
             if ($selectedSemester) {
                 $semesterStartDate = \Carbon\Carbon::parse($selectedSemester->start_date);
                 $semesterEndDate = \Carbon\Carbon::parse($selectedSemester->end_date);
             }
+        }
+         if ($selectedSemesterId) {
             $scheduleQuery->where('semester_id', $selectedSemesterId);
         }
+
+        if ($selectedLabId) {
+            $scheduleQuery->where('lab_id', $selectedLabId);
+        } elseif ($selectedLecturerId) {
+         
+            $scheduleQuery->whereHas('course', function ($q) use ($selectedLecturerId) {
+                $q->where('user_id', $selectedLecturerId);
+            });
+        }
+
         $schedules = $scheduleQuery->get();
-        
         // Setup current week logic
         $currentDate = $request->input('date') ? \Carbon\Carbon::parse($request->input('date')) : \Carbon\Carbon::now();
         
         try {
             $dateInput = $request->input('date');
             if ($dateInput) {
-                // 不管後面有沒有被髒資料黏住，一律只切前 10 個字元 (YYYY-MM-DD)
-                $dateStr = substr($dateInput, 0, 10); 
-                $currentDate = \Carbon\Carbon::parse($dateStr);
+                $cleanDateStr = substr($dateInput, 0, 10); 
+                $currentDate = \Carbon\Carbon::parse($cleanDateStr);
             } else {
                 $currentDate = \Carbon\Carbon::now();
             }
         } catch (\Exception $e) {
-            $currentDate = \Carbon\Carbon::now();
+            $currentDate = \Carbon\Carbon::now(); 
         }
-        
+
         // If semester is selected, constrain currentDate within semester bounds
         if ($selectedSemester && $currentDate < $semesterStartDate) {
             $currentDate = $semesterStartDate->copy();
@@ -110,6 +127,7 @@ class ScheduleController extends Controller
                 $timetable[$timeSlot][$day] = [
                     'type' => 'none',
                     'rowspan' => 1,
+                    'schedule_id' => null, 
                     'data' => null
                 ];
             }
@@ -124,38 +142,52 @@ class ScheduleController extends Controller
             }
         } else {
             foreach ($schedules as $sched) {
-                $day = $sched->day_of_week;
-                $start = substr($sched->start_time, 0, 5);
-                $end = substr($sched->end_time, 0, 5);
-                
                 try {
-                    // Check if schedule falls within semester date range
+                    // For recurring schedules: render on the day_of_week for every week
+                    if ($sched->is_recurring) {
+                        $day = $sched->day_of_week;
+                        $scheduleDate = $startOfWeek->copy()->addDays(array_search($day, $days));
+                    } else {
+                        // One-time event: only render if its date belongs to the currently viewed week
+                        $scheduleDate = \Carbon\Carbon::parse($sched->date);
+                        if ($scheduleDate->lt($startOfWeek) || $scheduleDate->gt($startOfWeek->copy()->endOfWeek())) {
+                            continue; // skip events outside this week
+                        }
+                        $day = $scheduleDate->format('l');
+                    }
+
+                    // Enforce semester bounds when relevant
                     $scheduleSemester = $sched->semester;
                     $semesterStart = $scheduleSemester ? \Carbon\Carbon::parse($scheduleSemester->start_date) : null;
                     $semesterEnd = $scheduleSemester ? \Carbon\Carbon::parse($scheduleSemester->end_date) : null;
-                    
-                    // Find the actual date for this day of week in the current week
-                    $dayIndex = array_search($day, $days);
-                    if ($dayIndex === false) continue;
-                    
-                    $scheduleDate = $startOfWeek->copy()->addDays($dayIndex);
-                    
-                    // Check if the schedule date is within the semester date range
                     if ($semesterStart && $semesterEnd) {
-                        if ($scheduleDate < $semesterStart || $scheduleDate > $semesterEnd) {
-                            continue; // Skip this schedule as it's outside the semester range
+                        if ($scheduleDate->lt($semesterStart) || $scheduleDate->gt($semesterEnd)) {
+                            continue; // outside semester
                         }
                     }
-                    
+
+                    $start = substr($sched->start_time, 0, 5);
+                    $end = substr($sched->end_time, 0, 5);
                     $startCarbon = \Carbon\Carbon::createFromFormat('H:i', $start);
                     $endCarbon = \Carbon\Carbon::createFromFormat('H:i', $end);
                     $blocks = max(1, $startCarbon->diffInMinutes($endCarbon) / 60);
-                    
+
                     if (isset($timetable[$start][$day])) {
-                        $timetable[$start][$day]['type'] = 'enroll';
-                        $timetable[$start][$day]['rowspan'] = $blocks;
-                        $timetable[$start][$day]['data'] = $sched;
+                        // 💡 核心修復：從資料庫字串中抓取精確的 schedule_type
+                        $realType = $sched->schedule_type ?: 'enroll';
                         
+                        // 💡 如果有關聯的 booking，再次校正它的真實子類型 ('booking' 或 'maintenance')
+                        if ($sched->booking_id && $sched->booking) {
+                            $realType = $sched->booking->type ?? $realType;
+                        }
+
+                        $timetable[$start][$day]['type'] = $realType;
+                        $timetable[$start][$day]['rowspan'] = $blocks;
+                        $timetable[$start][$day]['schedule_id'] = $sched->id; // 💡 塞入原裝 Schedule ID 給前端生成 Edit 按鈕
+                        
+                        // 如果是課程，存儲整個 schedule 模型；如果是預訂，存儲其關聯的 booking 模型
+                        $timetable[$start][$day]['data'] = ($realType === 'enroll') ? $sched : $sched->booking;
+
                         for ($i = 1; $i < $blocks; $i++) {
                             $nextTime = $startCarbon->copy()->addMinutes(60 * $i)->format('H:i');
                             if (isset($timetable[$nextTime][$day])) {
@@ -163,34 +195,43 @@ class ScheduleController extends Controller
                             }
                         }
                     }
-                } catch (\Exception $e) { }
+                } catch (\Exception $e) {
+                    // ignore malformed schedules but continue processing others
+                    continue;
+                }
             }
 
             foreach ($bookings as $booking) {
-                try {
-                    $bookingCarbon = \Carbon\Carbon::parse($booking->date);
-                    $day = $bookingCarbon->format('l');
-                    $start = substr($booking->start_time, 0, 5);
-                    $end = substr($booking->end_time, 0, 5);
+            try {
+                $bookingCarbon = \Carbon\Carbon::parse($booking->date);
+                $day = $bookingCarbon->format('l');
+                $start = substr($booking->start_time, 0, 5);
+                $end = substr($booking->end_time, 0, 5);
+                
+                $startCarbon = \Carbon\Carbon::createFromFormat('H:i', $start);
+                $endCarbon = \Carbon\Carbon::createFromFormat('H:i', $end);
+                $blocks = max(1, $startCarbon->diffInMinutes($endCarbon) / 60);
+                
+                if (isset($timetable[$start][$day]) && $timetable[$start][$day]['type'] === 'none') {
+                    $realBookingType = $booking->type ?? 'booking'; // 以欄位紀錄的 type 為主
                     
-                    $startCarbon = \Carbon\Carbon::createFromFormat('H:i', $start);
-                    $endCarbon = \Carbon\Carbon::createFromFormat('H:i', $end);
-                    $blocks = max(1, $startCarbon->diffInMinutes($endCarbon) / 60);
+                    $timetable[$start][$day]['type'] = $realBookingType;
+                    $timetable[$start][$day]['rowspan'] = $blocks;
                     
-                    if (isset($timetable[$start][$day]) && $timetable[$start][$day]['type'] === 'none') {
-                        $isMaintenance = stripos($booking->purpose, 'maintenance') !== false || stripos($booking->purpose, 'close') !== false;
-                        $timetable[$start][$day]['type'] = $isMaintenance ? 'maintenance' : 'booking';
-                        $timetable[$start][$day]['rowspan'] = $blocks;
-                        $timetable[$start][$day]['data'] = $booking;
-                        
-                        for ($i = 1; $i < $blocks; $i++) {
-                            $nextTime = $startCarbon->copy()->addMinutes(60 * $i)->format('H:i');
-                            if (isset($timetable[$nextTime][$day])) {
-                                $timetable[$nextTime][$day]['type'] = 'skip';
-                            }
+                    // 💡 嘗試反向查找對應的 schedule_id
+                    $linkedScheduleId = \App\Models\Schedule::where('booking_id', $booking->id)->value('id');
+                    $timetable[$start][$day]['schedule_id'] = $linkedScheduleId;
+                    
+                    $timetable[$start][$day]['data'] = $booking;
+                    
+                    for ($i = 1; $i < $blocks; $i++) {
+                        $nextTime = $startCarbon->copy()->addMinutes(60 * $i)->format('H:i');
+                        if (isset($timetable[$nextTime][$day])) {
+                            $timetable[$nextTime][$day]['type'] = 'skip';
                         }
                     }
-                } catch (\Exception $e) { }
+                }
+            } catch (\Exception $e) { }
             }
         }
 
@@ -275,14 +316,12 @@ class ScheduleController extends Controller
         $params = $queryString ? '&' . $queryString : '';
         $qs = $params; 
 
-        $prevWeek = $prevWeekDate->format('Y-m-d') . $params;
-        $nextWeek = $nextWeekDate->format('Y-m-d') . $params;
-        
-        $prevMonth = $currentDate->copy()->subMonth()->format('Y-m-d') . $params;
-        $nextMonth = $currentDate->copy()->addMonth()->format('Y-m-d') . $params;
+        $prevWeek  = $currentDate->copy()->subWeek()->format('Y-m-d');
+        $nextWeek  = $currentDate->copy()->addWeek()->format('Y-m-d');
+        $prevMonth = $currentDate->copy()->subMonth()->format('Y-m-d');
+        $nextMonth = $currentDate->copy()->addMonth()->format('Y-m-d');
 
         $selectedLab = $selectedLabId ? \App\Models\Laboratory::find($selectedLabId) : null;
-        $selectedLecturer = $selectedLecturerId ? \App\Models\User::find($selectedLecturerId) : null;
 
         return view('admin.schedules.index', compact(
             'schedules', 
@@ -314,10 +353,16 @@ class ScheduleController extends Controller
 
     public function create()
     {
-        $laboratories = Laboratory::all();
-        $courses = Course::all();
-        $semesters = Semester::all();
-        return view('admin.schedules.create', compact('laboratories', 'courses', 'semesters'));
+        // 取得下拉選單資料
+        $laboratories = Laboratory::orderBy('lab_name')->get();
+        $courses = Course::orderBy('course_name')->get();
+        $semesters = Semester::orderBy('start_date', 'desc')->get();
+
+        // 篩選出 user_role 為 3 或 4 的使用者作為技師清單
+        // 傳至 view 用於維護指派
+        $technicians = User::whereIn('user_role', [3, 4])->get();
+
+        return view('admin.schedules.create', compact('laboratories', 'courses', 'semesters', 'technicians'));
     }
 
     protected function hasScheduleConflict(int $labId, int $semesterId, string $date, string $newStartTime, string $newEndTime, ?int $excludeScheduleId = null): bool
@@ -397,203 +442,479 @@ class ScheduleController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'semester_id' => 'required|exists:semesters,id',
-            'lab_id' => 'required|exists:laboratories,id',
-            'course_id' => 'required|exists:courses,id',
-            'date' => 'required|date',
-            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/'],
-            'is_recurring' => 'required|boolean',
+{
+    $type = $request->input('schedule_type');
+
+    // 💡 核心修復：如果勾選了全天維修，直接在後端把時間塞進 Request 裡！
+    if ($type === 'maintenance' && $request->input('all_day') == '1') {
+        $request->merge([
+            'start_time' => '08:00',
+            'end_time' => '18:00'
         ]);
+    }
 
-        $validator->after(function ($validator) use ($request) {
-            if ($validator->errors()->isEmpty()) {
-                $semester = Semester::find($request->input('semester_id'));
-                $course = Course::find($request->input('course_id'));
-                $hours = max(1, (int) ($course?->hours ?? 1));
+    // 基本欄位驗證
+    $rules = [
+        'schedule_type' => ['required', Rule::in(['enroll','booking','maintenance'])],
+        'lab_id' => ['required', 'exists:laboratories,id'],
+        'date' => ['required', 'date'],
+        'start_time' => ['required', 'date_format:H:i'],
+        'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+        'is_recurring' => ['sometimes', 'in:0,1'],
+    ];
+
+    if ($type === 'enroll') {
+        $rules['semester_id'] = ['required', 'exists:semesters,id'];
+        $rules['course_id'] = ['required', 'exists:courses,id'];
+    } elseif ($type === 'booking') {
+        $rules['purpose'] = ['required', 'string', 'max:255'];
+        $rules['booker_name'] = ['nullable', 'string', 'max:255'];
+    } elseif ($type === 'maintenance') {
+        $rules['purpose'] = ['required', 'string', 'max:255'];
+        $rules['technician_id'] = ['nullable', 'exists:users,id'];
+        $rules['all_day'] = ['sometimes', 'in:1'];
+    }
+
+    $validator = Validator::make($request->all(), $rules);
+
+    // 額外業務邏輯驗證
+    $validator->after(function ($validator) use ($request, $type) {
+        if ($validator->errors()->isNotEmpty()) return;
+
+        // 檢查日期在學期範圍
+        if ($type === 'enroll' && $request->filled('semester_id')) {
+            $semester = Semester::find($request->input('semester_id'));
+            if ($semester) {
                 $date = $request->input('date');
-
                 if ($date < $semester->start_date || $date > $semester->end_date) {
-                    $validator->errors()->add(
-                        'date',
-                        "The selected date ({$date}) must fall within the chosen semester period ({$semester->start_date} to {$semester->end_date})."
-                    );
+                    $validator->errors()->add('date', "選擇的日期必須落在學期期間 ({$semester->start_date} - {$semester->end_date}) 之間");
                     return;
                 }
-
-                $startTimeStr = $request->input('start_time');
-                if (strlen($startTimeStr) == 5) { $startTimeStr .= ':00'; }
-                $start = \Carbon\Carbon::createFromFormat('H:i:s', $startTimeStr);
-                $end = $start->copy()->addHours($hours);
-
-                $latestStart = \Carbon\Carbon::createFromFormat('H:i:s', sprintf('%02d:00:00', max(8, 18 - $hours)));
-                if ($start->gt($latestStart)) {
-                    $validator->errors()->add(
-                        'start_time',
-                        "A {$hours}-hour course must start by {$latestStart->format('H:i')} so it ends by 18:00."
-                    );
-                    return;
-                }
-
-                $labId = $request->input('lab_id');
-                $newStartTime = $start->format('H:i:s');
-                $newEndTime = $end->format('H:i:s');
-                $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
-
-                if ($this->hasScheduleConflict($labId, $semester->id, $date, $newStartTime, $newEndTime)) {
-                    $validator->errors()->add(
-                        'start_time',
-                        "Time slot conflict! This laboratory already has a recurring or one-time schedule during this period ({$start->format('H:i')} - {$end->format('H:i')})."
-                    );
-                }
             }
-        });
-
-        if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => $validator->errors()], 422);
-            }
-            return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        $data = $request->all();
-        $data['is_recurring'] = $request->boolean('is_recurring', true);
-        $data['day_of_week'] = \Carbon\Carbon::parse($data['date'])->format('l');
+        // 檢查時間是否落在營業時段
+        $start = $request->input('start_time');
+        $end = $request->input('end_time');
 
-        if (isset($data['start_time']) && strlen($data['start_time']) == 5) {
-            $data['start_time'] .= ':00';
+        try {
+            $s = \Carbon\Carbon::createFromFormat('H:i', $start);
+            $e = \Carbon\Carbon::createFromFormat('H:i', $end);
+            if ($s->hour < 8 || $e->hour > 18 || $s->gte($e)) {
+                $validator->errors()->add('start_time', '時間需在 08:00 - 18:00 之間，且結束時間必須晚於開始時間');
+                return;
+            }
+        } catch (\Exception $ex) {
+            $validator->errors()->add('start_time', '時間格式錯誤');
+            return;
         }
 
-        $course = Course::find($data['course_id']);
-        $hours = max(1, (int) ($course?->hours ?? 1));
-        $data['end_time'] = \Carbon\Carbon::createFromFormat('H:i:s', $data['start_time'])
-            ->copy()
-            ->addHours($hours)
-            ->format('H:i:s');
+        // 衝突檢查
+        $labId = $request->input('lab_id');
+        $date = $request->input('date');
+        
+        $newStart = \Carbon\Carbon::createFromFormat('H:i', $start)->format('H:i:s');
+        $newEnd = \Carbon\Carbon::createFromFormat('H:i', $end)->format('H:i:s');
+        $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
+        
+        // 1) 檢查 schedules 表
+        $schedules = Schedule::where('lab_id', $labId)
+            ->where(function ($q) use ($dayOfWeek, $date) {
+                $q->where(function ($sub) use ($dayOfWeek) {
+                    $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
+                })->orWhere(function ($sub) use ($date) {
+                    $sub->where('is_recurring', false)->where('date', $date);
+                });
+            })->get(['start_time', 'end_time']);
 
-        $schedule = Schedule::create($data);
+        foreach ($schedules as $s) {
+            if ($s->start_time < $newEnd && $s->end_time > $newStart) {
+                $validator->errors()->add('start_time', '與既有排程衝突，請選擇其他時段');
+                return;
+            }
+        }
 
+        // 2) 檢查 bookings 表
+        $bookings = Booking::where('lab_id', $labId)->where('date', $date)->get(['start_time', 'end_time']);
+        foreach ($bookings as $b) {
+            if ($b->start_time < $newEnd && $b->end_time > $newStart) {
+                $validator->errors()->add('start_time', '與既有預訂或維護衝突，請選擇其他時段');
+                return;
+            }
+        }
+    });
+
+    // 💡 統一的失敗返回：无论是 AJAX 还是普通表单，都给出正确的错误引导
+    if ($validator->fails()) {
         if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Schedule added successfully',
-                'schedule' => $schedule
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        return redirect()->back()->withErrors($validator)->withInput();
+    }
+
+    DB::beginTransaction();
+    try {
+        $isRecurring = $request->boolean('is_recurring', false);
+        if ($type === 'enroll') {
+            $isRecurring = $request->boolean('is_recurring', true);
+        }
+        
+        $dayOfWeek = \Carbon\Carbon::parse($request->input('date'))->format('l');
+        $startTime = $request->input('start_time');
+        $endTime = $request->input('end_time');
+
+        if ($type === 'enroll') {
+            Schedule::create([
+                'schedule_type' => 'enroll',
+                'semester_id' => $request->input('semester_id'),
+                'lab_id' => $request->input('lab_id'),
+                'course_id' => $request->input('course_id'),
+                'booking_id' => null,
+                'date' => $request->input('date'),
+                'day_of_week' => $dayOfWeek,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'is_recurring' => $isRecurring,
+            ]);
+        } elseif ($type === 'booking') {
+            $booking = Booking::create([
+                'lab_id' => $request->input('lab_id'),
+                'type' => 'booking',
+                'user_id' => auth()->id() ?? null,
+                'booker_name' => $request->input('booker_name'),
+                'purpose' => $request->input('purpose'),
+                'date' => $request->input('date'),
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'status' => 2,
+            ]);
+
+            Schedule::create([
+                'schedule_type' => 'booking',
+                'semester_id' => $request->input('semester_id') ?: null,
+                'lab_id' => $request->input('lab_id'),
+                'course_id' => null,
+                'booking_id' => $booking->id,
+                'date' => $request->input('date'),
+                'day_of_week' => $dayOfWeek,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'is_recurring' => $isRecurring,
+            ]);
+        } else { // maintenance
+            $booking = Booking::create([
+                'lab_id' => $request->input('lab_id'),
+                'type' => 'maintenance',
+                'user_id' => $request->input('technician_id') ?: null,
+                'booker_name' => null,
+                'purpose' => $request->input('purpose'),
+                'date' => $request->input('date'),
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'status' => 2,
+            ]);
+
+            Schedule::create([
+                'schedule_type' => 'maintenance',
+                'semester_id' => null,
+                'lab_id' => $request->input('lab_id'),
+                'course_id' => null,
+                'booking_id' => $booking->id,
+                'date' => $request->input('date'),
+                'day_of_week' => $dayOfWeek,
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'is_recurring' => $isRecurring,
             ]);
         }
 
-        $redirectParams = [];
-        if ($request->filled('return_date')) { $redirectParams['date'] = $request->input('return_date'); }
-        if ($request->filled('return_lab_id')) { $redirectParams['lab_id'] = $request->input('return_lab_id'); }
-        if ($request->filled('return_semester_id')) { $redirectParams['semester_id'] = $request->input('return_semester_id'); }
+        DB::commit();
 
-        $url = empty($redirectParams) ? '/admin/schedules' : '/admin/schedules?' . http_build_query($redirectParams);
+        // 💡 核心修復：如果是普通表單提交，成功後直接跳轉回列表頁
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Schedule saved successfully.']);
+        }
 
-        return redirect()->to(url($url))->with('status', 'Schedule added successfully.');
+        $params = array_filter([
+            'date' => $request->input('return_date') ?? $request->input('date'),
+            'lab_id' => $request->input('return_lab_id') ?? $request->input('lab_id'),
+            'semester_id' => $request->input('return_semester_id') ?? $request->input('semester_id') ?? null,
+        ]);
+
+        return redirect()->to('/admin/schedules' . (count($params) ? ('?' . http_build_query($params)) : ''))
+                         ->with('success', 'Schedule saved successfully.');
+        
+    } catch (\Exception $ex) {
+        DB::rollBack();
+        
+        if ($request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $ex->getMessage()], 500);
+        }
+        return redirect()->back()->withErrors(['error' => 'Failed to save schedule: ' . $ex->getMessage()])->withInput();
     }
+}   
+public function getAvailableTimeSlots(Request $request)
+{
+    $date = $request->query('date');
+    $labId = $request->query('laboratory_id');
+
+    if (!$date || !$labId) return response()->json([]);
+
+    // 1. 获取所有可能的时段 (08:00 到 16:00)
+    $allSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+
+    // 2. 获取该实验室该日期的所有占用记录
+    $occupied = \App\Models\Schedule::where('lab_id', $labId)
+        ->where('date', $date)
+        ->get(['start_time', 'end_time']);
+
+    // 3. 过滤掉被占用的时段
+    $availableSlots = array_filter($allSlots, function($time) use ($occupied) {
+        foreach ($occupied as $slot) {
+            $s = substr($slot->start_time, 0, 5);
+            $e = substr($slot->end_time, 0, 5);
+            // 如果这个时间点在某个已占用区间 [start, end) 内，则剔除
+            if ($time >= $s && $time < $e) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    return response()->json(array_values($availableSlots));
+}
+
+   public function checkOccupiedSlots(Request $request)
+{
+    $date = $request->query('date');
+    $labId = $request->query('laboratory_id');
+
+    if (!$date || !$labId) return response()->json([]);
+
+    $schedules = Schedule::where('lab_id', $labId)->where('date', $date)->get(['start_time', 'end_time']);
+    $bookings = Booking::where('lab_id', $labId)->where('date', $date)->get(['start_time', 'end_time']);
+
+    $occupied = $schedules->merge($bookings)->map(function ($item) {
+        return [
+            'start_time' => substr($item->start_time, 0, 5),
+            'end_time' => substr($item->end_time, 0, 5),
+        ];
+    });
+
+    return response()->json($occupied);
+}
 
     public function edit(Schedule $schedule)
     {
         $laboratories = Laboratory::all();
         $courses = Course::all();
         $semesters = Semester::all();
-        return view('admin.schedules.edit', compact('schedule', 'laboratories', 'courses', 'semesters'));
+        $technicians = User::whereIn('user_role', [3,4])->get();
+        return view('admin.schedules.edit', compact('schedule', 'laboratories', 'courses', 'semesters', 'technicians'));
     }
 
-    public function update(Request $request, Schedule $schedule)
-    {
-        $validator = Validator::make($request->all(), [
-            'semester_id' => 'required|exists:semesters,id',
-            'lab_id' => 'required|exists:laboratories,id',
-            'course_id' => 'required|exists:courses,id',
-            'date' => 'required|date',
-            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/'],
-            'is_recurring' => 'required|boolean',
-        ]);
+   public function update(Request $request, Schedule $schedule)
+{
+    // Determine the schedule type (use existing if not provided)
+    $type = $schedule->schedule_type ?? $request->input('schedule_type');
 
-        $validator->after(function ($validator) use ($request, $schedule) {
-            if ($validator->errors()->isEmpty()) {
-                $course = Course::find($request->input('course_id'));
-                $hours = max(1, (int) ($course?->hours ?? 1));
-                $semester = Semester::find($request->input('semester_id'));
-                $date = $request->input('date');
+    // Base validation rules
+    $rules = [
+        'lab_id' => 'required|exists:laboratories,id',
+        'date' => 'required|date',
+        'start_time' => ['required', 'date_format:H:i'],
+        'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
+        'is_recurring' => 'sometimes|in:0,1',
+    ];
 
+    // Conditional rules based on schedule type
+    if ($type === 'enroll') {
+        $rules['semester_id'] = 'required|exists:semesters,id';
+        $rules['course_id'] = 'required|exists:courses,id';
+    } elseif ($type === 'booking') {
+        $rules['purpose'] = 'required|string|max:255';
+        $rules['booker_name'] = 'nullable|string|max:255';
+    } elseif ($type === 'maintenance') {
+        $rules['purpose'] = 'required|string|max:255';
+        $rules['technician_id'] = 'nullable|exists:users,id';
+        $rules['all_day'] = 'sometimes|in:1';
+    }
+
+    $validator = Validator::make($request->all(), $rules);
+
+    // Business rules and conflict checks
+    $validator->after(function ($validator) use ($request, $schedule, $type) {
+        if ($validator->errors()->isNotEmpty()) return;
+
+        $date = $request->input('date');
+
+        // Enroll type: date must fall within the semester duration
+        if ($type === 'enroll' && $request->filled('semester_id')) {
+            $semester = Semester::find($request->input('semester_id'));
+            if ($semester) {
                 if ($date < $semester->start_date || $date > $semester->end_date) {
-                    $validator->errors()->add(
-                        'date',
-                        "The selected date ({$date}) must fall within the chosen semester period ({$semester->start_date} to {$semester->end_date})."
-                    );
-                    return;
-                }
-
-                $startTimeStr = $request->input('start_time');
-                if (strlen($startTimeStr) == 5) { $startTimeStr .= ':00'; }
-                $start = \Carbon\Carbon::createFromFormat('H:i:s', $startTimeStr);
-                $end = $start->copy()->addHours($hours);
-
-                $latestStart = \Carbon\Carbon::createFromFormat('H:i:s', sprintf('%02d:00:00', max(8, 18 - $hours)));
-                if ($start->gt($latestStart)) {
-                    $validator->errors()->add(
-                        'start_time',
-                        "A {$hours}-hour course must start by {$latestStart->format('H:i')} so it ends by 18:00."
-                    );
-                    return;
-                }
-
-                $newStartTime = $start->format('H:i:s');
-                $newEndTime = $end->format('H:i:s');
-                $labId = $request->input('lab_id');
-
-                if ($this->hasScheduleConflict($labId, $semester->id, $date, $newStartTime, $newEndTime, $schedule->id)) {
-                    $validator->errors()->add(
-                        'start_time',
-                        "Time slot conflict! This laboratory already has a recurring or one-time schedule during this period ({$start->format('H:i')} - {$end->format('H:i')})."
-                    );
+                    $validator->errors()->add('date', "Selected date must fall within the semester ({$semester->start_date} - {$semester->end_date}).");
                 }
             }
-        });
+        }
 
-        if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json(['errors' => $validator->errors()], 422);
+        // Validate business operating hours (08:00 - 18:00)
+        $start = $request->input('start_time');
+        $end = $request->input('end_time');
+        if (isset($start) && isset($end)) {
+            try {
+                $s = \Carbon\Carbon::createFromFormat('H:i', $start);
+                $e = \Carbon\Carbon::createFromFormat('H:i', $end);
+                if ($s->hour < 8 || $e->hour > 18 || $s->gte($e)) {
+                    $validator->errors()->add('start_time', 'Time must be between 08:00 and 18:00 and end after start.');
+                }
+            } catch (\Exception $ex) {
+                $validator->errors()->add('start_time', 'Invalid time format.');
             }
-            return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        $data = $request->all();
-        $data['is_recurring'] = $request->boolean('is_recurring', true);
-        $data['day_of_week'] = \Carbon\Carbon::parse($data['date'])->format('l');
+        // Conflict checking variables
+        $labId = $request->input('lab_id');
+        
+        // 💡 核心修復：確保拿到的是標準的 5 位數 "HH:mm" 字串，不受任何秒數干擾
+        $newStart = substr($request->input('start_time'), 0, 5);
+        $newEnd = substr($request->input('end_time'), 0, 5);
+        $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
 
-        if (isset($data['start_time']) && strlen($data['start_time']) == 5) {
-            $data['start_time'] .= ':00';
+        // 1) Conflict Check: Schedules Table (Excluding current schedule record)
+        $schedules = Schedule::where('lab_id', $labId)
+            ->where(function ($q) use ($dayOfWeek, $date) {
+                $q->where(function ($sub) use ($dayOfWeek) {
+                    $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
+                })->orWhere(function ($sub) use ($date) {
+                    $sub->where('is_recurring', false)->where('date', $date);
+                });
+            })
+            ->where('id', '!=', $schedule->id) // Safely exclude self
+            ->get(['start_time', 'end_time']);
+
+        foreach ($schedules as $s) {
+            // 💡 核心修復：把資料庫帶出的 "HH:mm:ss" 強制裁切成 "HH:mm"
+            $dbStart = substr($s->start_time, 0, 5);
+            $dbEnd = substr($s->end_time, 0, 5);
+
+            if ($dbStart < $newEnd && $dbEnd > $newStart) {
+                $validator->errors()->add('start_time', 'Conflicts with an existing schedule.');
+                break;
+            }
         }
 
-        $course = Course::find($data['course_id']);
-        $hours = max(1, (int) ($course?->hours ?? 1));
-        $data['end_time'] = \Carbon\Carbon::createFromFormat('H:i:s', $data['start_time'])
-            ->copy()
-            ->addHours($hours)
-            ->format('H:i:s');
+        // 2) Conflict Check: Bookings Table (Excluding the linked booking record)
+        if ($validator->errors()->isEmpty()) {
+            $bookings = Booking::where('lab_id', $labId)
+                ->where('date', $date)
+                ->get(['start_time', 'end_time', 'id']);
 
-        $schedule->update($data);
+            foreach ($bookings as $b) {
+                // If this schedule record is linked to this specific booking row, skip check
+                if ($schedule->booking_id && $b->id == $schedule->booking_id) {
+                    continue;
+                }
 
+                // 💡 核心修復：Booking 表拉出的時間也必須裁切，防止 "13:00:00" > "13:00" 的字串比對漏洞
+                $dbBookingStart = substr($b->start_time, 0, 5);
+                $dbBookingEnd = substr($b->end_time, 0, 5);
+
+                if ($dbBookingStart < $newEnd && $dbBookingEnd > $newStart) {
+                    $validator->errors()->add('start_time', 'Conflicts with an existing booking/maintenance.');
+                    break;
+                }
+            }
+        }
+    });
+
+    // Handle Validation Failure
+    if ($validator->fails()) {
         if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Schedule updated successfully',
-                'schedule' => $schedule
-            ]);
+            return response()->json(['errors' => $validator->errors()], 422);
         }
-
-        $redirectParams = [];
-        if ($request->filled('return_date')) { $redirectParams['date'] = $request->input('return_date'); }
-        if ($request->filled('return_lab_id')) { $redirectParams['lab_id'] = $request->input('return_lab_id'); }
-        if ($request->filled('return_semester_id')) { $redirectParams['semester_id'] = $request->input('return_semester_id'); }
-
-        return redirect()->to(url('/admin/schedules?' . http_build_query($redirectParams)))
-                         ->with('status', 'Schedule updated successfully.');
+        return redirect()->back()->withErrors($validator)->withInput();
     }
 
+    // Begin building update data array
+    $data = [];
+    $data['lab_id'] = $request->input('lab_id');
+    $data['date'] = $request->input('date');
+    $data['day_of_week'] = \Carbon\Carbon::parse($request->input('date'))->format('l');
+    $data['is_recurring'] = $request->boolean('is_recurring', $schedule->is_recurring);
+    $data['start_time'] = $request->input('start_time');
+    $data['end_time'] = $request->input('end_time');
+
+    // Execute save strategy based on schedule workflow type
+    if ($type === 'enroll') {
+        $data['semester_id'] = $request->input('semester_id');
+        $data['course_id'] = $request->input('course_id');
+        $data['booking_id'] = null;
+        $data['schedule_type'] = 'enroll';
+
+        // Only calculate end time via course hours for Enroll schedules
+        $course = Course::find($data['course_id']);
+        if ($course) {
+            $hours = max(1, (int)$course->hours);
+            $parsedStart = (strlen($data['start_time']) === 5) ? 
+                \Carbon\Carbon::createFromFormat('H:i', $data['start_time']) : 
+                \Carbon\Carbon::createFromFormat('H:i:s', $data['start_time']);
+
+            $data['end_time'] = $parsedStart->copy()->addHours($hours)->format('H:i:s');
+        }
+
+    } else {
+        // booking or maintenance logic
+        if ($schedule->booking_id) {
+            $bookingData = [
+                'lab_id' => $request->input('lab_id'),
+                'purpose' => $request->input('purpose'),
+                'date' => $request->input('date'),
+                'start_time' => $request->input('start_time'),
+                'end_time' => $request->input('end_time'),
+            ];
+
+            if ($type === 'booking') {
+                $bookingData['booker_name'] = $request->input('booker_name');
+                $bookingData['type'] = 'booking';
+            } else {
+                $bookingData['user_id'] = $request->input('technician_id') ?: null;
+                $bookingData['type'] = 'maintenance';
+            }
+            Booking::where('id', $schedule->booking_id)->update($bookingData);
+        }
+
+        $data['semester_id'] = $type === 'booking' ? $request->input('semester_id') ?: null : null;
+        $data['course_id'] = null;
+        $data['booking_id'] = $schedule->booking_id;
+        $data['schedule_type'] = $type;
+    }
+
+    // Final Single Update Execution
+    $schedule->update($data);
+
+    // Build matching query parameters for smooth view refreshing
+    $redirectParams = [];
+    if ($request->filled('return_date')) { $redirectParams['date'] = $request->input('return_date'); }
+    if ($request->filled('return_lab_id')) { $redirectParams['lab_id'] = $request->input('return_lab_id'); }
+    if ($request->filled('return_semester_id')) { $redirectParams['semester_id'] = $request->input('return_semester_id'); }
+    
+    $queryString = count($redirectParams) ? '?' . http_build_query($redirectParams) : '';
+    $finalRedirectUrl = url('/admin/schedules' . $queryString);
+
+    // Return responsive outputs
+    if ($request->expectsJson()) {
+        return response()->json([
+            'success' => true,
+            'message' => 'Schedule updated successfully.',
+            'redirect_url' => $finalRedirectUrl,
+            'schedule' => $schedule
+        ]);
+    }
+
+    return redirect($finalRedirectUrl)->with('success', 'Schedule updated successfully.');
+}
+   
     public function destroy(Request $request, Schedule $schedule)
     {
         $schedule->delete();

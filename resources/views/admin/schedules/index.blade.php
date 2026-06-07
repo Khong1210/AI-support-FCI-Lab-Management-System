@@ -195,7 +195,7 @@
                 <optgroup label="Laboratories">
                     @foreach($laboratories as $lab)
                         <option value="lab_{{ $lab->id }}" {{ ($selectedLabId && $selectedLabId == $lab->id) ? 'selected' : '' }}>
-                            🏢 {{ $lab->lab_name }}
+                             {{ $lab->lab_name }}
                         </option>
                     @endforeach
                 </optgroup>
@@ -203,7 +203,7 @@
                 <optgroup label="Lecturers">
                     @foreach($lecturers as $lecturer)
                         <option value="lec_{{ $lecturer->id }}" {{ (($selectedLecturerId ?? null) && $selectedLecturerId == $lecturer->id) ? 'selected' : '' }}>
-                            👨‍🏫 {{ $lecturer->username }}
+                             {{ $lecturer->username }}
                         </option>
                     @endforeach
                 </optgroup>
@@ -227,7 +227,7 @@
 
 <div class="row">
     <div class="col-lg-9 col-md-8 transition-all" id="schedule-main-col" style="transition: all 0.3s ease;">
-        <div class="card card-primary card-outline shadow-sm h-100">
+        <div class="card card shadow-sm card-outline card shadow-sm h-100">
             <div class="card-header d-flex align-items-center p-2">
                 <h3 class="card-title m-0 font-weight-bold ml-2">
                     Weekly Schedule Matrix 
@@ -245,7 +245,6 @@
                     
                     <div class="btn-group btn-group-sm">
                         @php
-                            // 重新整理傳遞參數，網址只有 semester_id 和合併後的 view_target
                             $linkParams = [];
                             if (!empty($selectedSemesterId)) { $linkParams['semester_id'] = $selectedSemesterId; }
                             
@@ -290,6 +289,13 @@
                     </thead>
                     <tbody>
                         @foreach($timetable as $timeSlot => $daysRow)
+                            @php
+                                // 💡 1. 如果時段到了 18:00 或更晚，直接跳過不畫，完美收官在 05:00 PM
+                                if (\Carbon\Carbon::createFromFormat('H:i', $timeSlot)->hour >= 18) {
+                                    continue;
+                                }
+                            @endphp
+
                             <tr>
                                 <td class="time-col">
                                     @php
@@ -299,42 +305,84 @@
                                     {{ $curHour }}
                                 </td>
                                 @foreach($days as $day)
-                                    @php $slot = $daysRow[$day]; @endphp
+                                    @php 
+                                        $slot = $daysRow[$day]; 
+                                    @endphp
+                                    
+                                    {{-- 如果是被合併的儲存格，直接跳過 --}}
                                     @if($slot['type'] === 'skip')
                                         @continue
                                     @endif
 
-                                    <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }} {{ $slot['type'] === 'enroll' ? 'bg-enroll-td' : '' }} {{ $slot['type'] === 'booking' ? 'bg-booking-td' : '' }} {{ $slot['type'] === 'maintenance' ? 'bg-maintenance-td' : '' }}" rowspan="{{ $slot['rowspan'] }}" style="padding: 0;">
+                                    {{-- 💡 2. 動態綁定外層 <td> 的背景色樣式 --}}
+                                    <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }} {{ $slot['type'] === 'enroll' ? 'bg-enroll-td' : '' }} {{ $slot['type'] === 'booking' ? 'bg-booking-td' : '' }} {{ $slot['type'] === 'maintenance' ? 'bg-maintenance-td' : '' }}" rowspan="{{ $slot['rowspan'] }}" style="padding: 0; vertical-align: top;">
+                                        
                                         @if($slot['type'] === 'none')
-                                            <div class="schedule-block none"></div>
+                                            <div class="schedule-block none" style="height: 100%; min-height: 50px;"></div>
                                             
                                         @elseif($slot['type'] === 'maintenance')
                                             @php
-                                                $maintenanceStart = is_string($slot['data']) ? $timeSlot : substr($slot['data']->start_time, 0, 5);
-                                                $maintenanceEnd = is_string($slot['data']) ? '' : substr($slot['data']->end_time, 0, 5);
+                                                // 如果 data 是字串（系統全天關閉），或是 Booking 物件
+                                                $mPurpose = (is_object($slot['data']) && isset($slot['data']->purpose)) ? $slot['data']->purpose : (is_string($slot['data']) ? $slot['data'] : 'Maintenance');
+                                                $mStart = (is_object($slot['data']) && isset($slot['data']->start_time)) ? substr($slot['data']->start_time, 0, 5) : $timeSlot;
+                                                $mEnd = (is_object($slot['data']) && isset($slot['data']->end_time)) ? substr($slot['data']->end_time, 0, 5) : '';
+                                                $labName = (is_object($slot['data']) && isset($slot['data']->laboratory)) ? ($slot['data']->laboratory->lab_name ?? 'Room') : ($selectedLab->lab_name ?? 'Room');
                                             @endphp
-                                            <div class="schedule-block maintenance" style="height: 100%; border: none;">
-                                                <strong>Maintenance / Closed</strong>
-                                                <span>{{ $maintenanceStart }} - {{ $maintenanceEnd }}</span>
-                                                <span>{{ $selectedLab->lab_name ?? 'Room' }}</span>
+                                            {{-- 使用 Flex 佈局確保 Edit 按鈕永遠靠最下 --}}
+                                            <div class="schedule-block maintenance" style="height: 100%; min-height: 60px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; border: none;">
+                                                <div>
+                                                    <strong class="d-block">Maintenance ({{ $labName }})</strong>
+                                                    <span class="d-block small text-muted">{{ $mStart }} - {{ $mEnd }}</span>
+                                                    <span class="d-block small">{{ $mPurpose }}</span>
+                                                </div>
+                                                {{-- 💡 3. 如果後端有抓到對應的 schedule_id，就渲染 Edit 按鈕 --}}
+                                                @if(!empty($slot['schedule_id']))
+                                                    <div class="schedule-actions mt-2 text-right">
+                                                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                    </div>
+                                                @endif
                                             </div>
                                             
                                         @elseif($slot['type'] === 'booking')
-                                            <div class="schedule-block booking" style="height: 100%; border: none;">
-                                                <strong>{{ $slot['data']->purpose }}</strong>
-                                                <span>{{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}</span>
-                                                <span>{{ $selectedLab->lab_name ?? 'Room' }}</span>
+                                            @php
+                                                $bPurpose = $slot['data']->purpose ?? 'Lab Booking';
+                                                $bStart = isset($slot['data']->start_time) ? substr($slot['data']->start_time, 0, 5) : $timeSlot;
+                                                $bEnd = isset($slot['data']->end_time) ? substr($slot['data']->end_time, 0, 5) : '';
+                                                $labName = isset($slot['data']->laboratory) ? ($slot['data']->laboratory->lab_name ?? 'Room') : ($selectedLab->lab_name ?? 'Room');
+                                            @endphp
+                                            <div class="schedule-block booking" style="height: 100%; min-height: 60px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; border: none;">
+                                                <div>
+                                                    <strong class="d-block">{{ $bPurpose }}</strong>
+                                                    <span class="d-block small text-muted">{{ $bStart }} - {{ $bEnd }}</span>
+                                                    <span class="d-block small">Venue: {{ $labName }}</span>
+                                                </div>
+                                                {{-- 💡 4. Booking 的 Edit 按鈕 --}}
+                                                @if(!empty($slot['schedule_id']))
+                                                    <div class="schedule-actions mt-2 text-right">
+                                                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                    </div>
+                                                @endif
                                             </div>
                                             
                                         @elseif($slot['type'] === 'enroll')
-                                            <div class="schedule-block enroll" style="height: 100%; border: none;">
-                                                <strong>{{ $slot['data']->course->course_name ?? 'Program' }}</strong>
-                                                <span>{{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}</span>
-                                                <span>Lecturer: {{ $slot['data']->course->user->username ?? 'None' }}</span>
-                                                <span>Semester: {{ $slot['data']->semester->name ?? 'None' }}</span>
-                                                <div class="schedule-actions">
-                                                    <a href="{{ url('/admin/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                            <div class="schedule-block enroll" style="height: 100%; min-height: 60px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; border: none;">
+                                                <div>
+                                                    <strong class="d-block">{{ $slot['data']->course->course_name ?? 'Program' }}</strong>
+                                                    <span class="d-block small text-muted">{{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}</span>
+                                                    <span class="d-block small">Lecturer: {{ $slot['data']->course->user->username ?? 'None' }}</span>
+                                                    <span class="d-block small">Semester: {{ $slot['data']->semester->name ?? 'None' }}</span>
+                                                    <span class="d-block small">Venue: {{ $slot['data']->laboratory->lab_name ?? 'None' }}</span>
                                                 </div>
+                                                {{-- 💡 5. Enroll 課程的 Edit 按鈕 --}}
+                                                @if(!empty($slot['schedule_id']))
+                                                    <div class="schedule-actions mt-2 text-right">
+                                                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                    </div>
+                                                @elseif(isset($slot['data']->id))
+                                                    <div class="schedule-actions mt-2 text-right">
+                                                        <a href="{{ url('/admin/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                    </div>
+                                                @endif
                                             </div>
                                         @endif
                                     </td>
