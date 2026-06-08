@@ -322,7 +322,7 @@ class ScheduleController extends Controller
         $nextMonth = $currentDate->copy()->addMonth()->format('Y-m-d');
 
         $selectedLab = $selectedLabId ? \App\Models\Laboratory::find($selectedLabId) : null;
-
+            
         return view('admin.schedules.index', compact(
             'schedules', 
             'weekDates', 
@@ -348,6 +348,7 @@ class ScheduleController extends Controller
             'lecturers',
             'selectedLecturerId',
             'selectedLecturer'
+            
         ));
     }
 

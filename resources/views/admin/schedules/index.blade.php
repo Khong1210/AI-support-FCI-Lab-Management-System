@@ -167,6 +167,7 @@
         padding: 6px 16px;
         font-size: 0.87rem;
     }
+    
 </style>
 @endpush
 
@@ -456,25 +457,36 @@
         </div>
 
         <!-- Legend Widget -->
-        <div class="card shadow-sm mb-3 border-0">
-            <div class="card-header bg-light p-2">
-                <h3 class="card-title m-0" style="font-size: 0.85rem; font-weight: 600;"><i class="fas fa-list mr-1"></i> Legend</h3>
-            </div>
-            <div class="card-body p-2" style="font-size: 0.8rem;">
-                <div class="d-flex align-items-center mb-1">
-                    <span style="display:inline-block; width:12px; height:12px; background:#f0f7ff; border-left:2px solid #007bff; margin-right:6px;"></span>
-                    Scheduled Class
-                </div>
-                <div class="d-flex align-items-center mb-1">
-                    <span style="display:inline-block; width:12px; height:12px; background:#f0fff4; border-left:2px solid #28a745; margin-right:6px;"></span>
-                    Booking Request
-                </div>
-                <div class="d-flex align-items-center mb-1">
-                    <span style="display:inline-block; width:12px; height:12px; background:#fff5f5; border-left:2px solid #dc3545; margin-right:6px;"></span>
-                    Maintenance
-                </div>
-            </div>
-        </div>
+       <div class="card shadow-sm mb-3 border-0">
+    <div class="card-header bg-light p-2">
+        <h3 class="card-title m-0" style="font-size: 0.85rem; font-weight: 600;">
+            <i class="fas fa-tools mr-1"></i> Maintenance Schedule
+        </h3>
+    </div>
+    <div class="card-body p-2" style="font-size: 0.75rem;">
+        @php $hasMaintenance = false; @endphp
+        
+        @foreach($timetable as $timeSlot => $daysRow)
+            @foreach($daysRow as $day => $slot)
+                @if($slot['type'] === 'maintenance')
+                    @php $hasMaintenance = true; @endphp
+                    <div class="mb-2 pb-1 border-bottom">
+                        <strong class="d-block text-danger">{{ $slot['data']->purpose ?? 'Maintenance' }}</strong>
+                        <span class="d-block text-muted">
+                            {{ $weekDates[$day]['date'] ?? $day }} | 
+                            {{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}
+                        </span>
+                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="text-primary font-weight-bold">Edit</a>
+                    </div>
+                @endif
+            @endforeach
+        @endforeach
+
+        @if(!$hasMaintenance)
+            <div class="text-muted text-center py-2">No maintenance scheduled.</div>
+        @endif
+    </div>
+</div>
         
     </div>
 </div>
