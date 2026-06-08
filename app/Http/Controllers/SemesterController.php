@@ -9,7 +9,7 @@ class SemesterController extends Controller
 {
     public function index()
     {
-        $semesters = Semester::orderBy('start_date', 'desc')->get();
+        $semesters = Semester::orderBy('id', 'asc')->get();
         return view('admin.semesters.index', compact('semesters'));
     }
 
