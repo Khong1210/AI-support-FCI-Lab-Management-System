@@ -1,112 +1,110 @@
 @extends('layouts.admin')
 
-@section('title', 'Mail / Inbox')
-@section('page-title', 'Mail / Inbox')
+@section('title', 'Mail / Announcements')
+@section('page-title', 'Mail / Announcements')
 @section('breadcrumb', 'Mail')
 
-@section('content')
-<div class="row">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h3 class="card-title">Pending Booking Requests ({{ $pendingBookings->count() }})</h3>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-bordered table-hover">
-                        <thead>
-                            <tr>
-                                <th>User</th>
-                                <th>Lab</th>
-                                <th>Date / Time</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($pendingBookings as $booking)
-                                <tr>
-                                    <td>{{ $booking->user->username ?? '-' }}</td>
-                                    <td>{{ $booking->laboratory->lab_name ?? '-' }}</td>
-                                    <td>
-                                        {{ $booking->date }}<br>
-                                        <small class="text-muted">{{ substr($booking->start_time, 0, 5) }} - {{ substr($booking->end_time, 0, 5) }}</small>
-                                    </td>
-                                    <td>
-                                        <div class="btn-group btn-group-sm" role="group">
-                                            <form action="{{ url('/admin/bookings/' . $booking->id . '/accept') }}" method="POST" class="d-inline-block">
-                                                @csrf
-                                                @method('PUT')
-                                                <button type="submit" class="btn btn-sm btn-success">Accept</button>
-                                            </form>
-                                            <form action="{{ url('/admin/bookings/' . $booking->id . '/reject') }}" method="POST" class="d-inline-block" style="margin-left: 2px;">
-                                                @csrf
-                                                @method('PUT')
-                                                <button type="submit" class="btn btn-sm btn-warning">Reject</button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="text-center">No pending booking requests.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="card-footer">
-                <a href="{{ url('/admin/bookings?status=1') }}" class="btn btn-sm btn-secondary">View All Pending</a>
-            </div>
-        </div>
-    </div>
+@push('styles')
+<style>
+    .mail-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        margin-bottom: 1rem;
+        border: 1px solid #e5e7eb;
+        transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .mail-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+    }
+    .mail-card.unread {
+        border-left: 4px solid var(--brand-primary);
+        background: #f8fafc;
+    }
+    .mail-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .mail-subject {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 1.05rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .mail-date {
+        font-size: 0.8rem;
+        color: #64748b;
+    }
+    .mail-body {
+        padding: 1.25rem;
+        color: #334155;
+        font-size: 0.9rem;
+        white-space: pre-line; /* Renders \n as line breaks */
+    }
+    .badge-type {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 700;
+    }
+    .type-booking_status { background: #dbeafe; color: #1e40af; }
+    .type-maintenance    { background: #fef9c3; color: #854d0e; }
+    .type-general        { background: #f1f5f9; color: #475569; }
+</style>
+@endpush
 
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h3 class="card-title">Open Problem Reports ({{ $openReports->count() }})</h3>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-bordered table-hover">
-                        <thead>
-                            <tr>
-                                <th>Issue</th>
-                                <th>Lab</th>
-                                <th>Date</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($openReports as $report)
-                                <tr>
-                                    <td>
-                                        <strong>{{ $report->issues_type }}</strong><br>
-                                        <small class="text-muted">{{ Str::limit($report->description, 55) }}</small>
-                                    </td>
-                                    <td>{{ $report->laboratory->lab_name ?? '-' }}</td>
-                                    <td>{{ $report->reported_date }}</td>
-                                    <td>
-                                        <form action="{{ url('/admin/reports/' . $report->id . '/resolve') }}" method="POST">
-                                            @csrf
-                                            @method('PUT')
-                                            <button type="submit" class="btn btn-sm btn-success">Resolve</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="4" class="text-center">No open reports.</td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="card-footer">
-                <a href="{{ url('/admin/reports') }}" class="btn btn-sm btn-secondary">View Reports</a>
-            </div>
+@section('content')
+
+<div class="row">
+    <div class="col-12">
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h5 class="mb-0 fw-semibold">
+                <i class="fas fa-inbox me-2 text-primary"></i>Your Notifications
+            </h5>
+            <span class="text-muted small">
+                All unread notifications are automatically marked as read.
+            </span>
         </div>
+
+        @forelse($mails as $mail)
+            <div class="mail-card {{ !$mail->is_read ? 'unread' : '' }}">
+                <div class="mail-header">
+                    <div class="mail-subject">
+                        @if(!$mail->is_read)
+                            <span class="badge bg-primary rounded-circle p-1 me-1" title="New message" style="width:10px;height:10px;display:inline-block;"></span>
+                        @endif
+                        {{ $mail->subject }}
+                        
+                        <span class="badge-type type-{{ $mail->type }}">
+                            {{ str_replace('_', ' ', $mail->type) }}
+                        </span>
+                    </div>
+                    <div class="mail-date">
+                        <i class="far fa-clock me-1"></i>
+                        {{ $mail->created_at->format('d M Y, H:i') }}
+                        ({{ $mail->created_at->diffForHumans() }})
+                    </div>
+                </div>
+                <div class="mail-body">{{ $mail->body }}</div>
+            </div>
+        @empty
+            <div class="text-center py-5">
+                <i class="fas fa-envelope-open-text fa-3x text-muted mb-3 opacity-50"></i>
+                <h5 class="text-muted">No announcements yet.</h5>
+                <p class="text-muted small">System notifications and booking updates will appear here.</p>
+            </div>
+        @endforelse
+
     </div>
 </div>
+
 @endsection

@@ -13,9 +13,11 @@ return new class extends Migration
     {
         Schema::create('system_mails', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('user_id')->default(1)->constrained('users')->onDelete('cascade');
             $table->string('subject');
             $table->text('body');
+            $table->boolean('is_read')->default(0);
+            $table->string('type')->default('general');
             $table->timestamps();
         });
     }

@@ -78,57 +78,74 @@ class BookingRequestController extends Controller
      *   { "start": "13:00", "end": "14:00" }
      * ]
      */
-    public function checkAvailability(Request $request)
-    {
-        $request->validate([
-            'lab_id' => 'required|exists:laboratories,id',
-            'date'   => 'required|date',
-        ]);
+   public function checkAvailability(Request $request)
+{
+    $request->validate([
+        'lab_id' => 'required|exists:laboratories,id',
+        'date'   => 'required|date',
+    ]);
 
-        $labId     = $request->input('lab_id');
-        $date      = $request->input('date');
-        $dayOfWeek = Carbon::parse($date)->format('l'); // e.g. "Monday"
+    $labId     = $request->input('lab_id');
+    $date      = $request->input('date');
+    $dayOfWeek = \Carbon\Carbon::parse($date)->format('l'); // e.g. "Monday"
 
-        // Find the semester that covers this date
-        $semester = Semester::whereDate('start_date', '<=', $date)
-                            ->whereDate('end_date', '>=', $date)
-                            ->first();
-        $semesterId = $semester?->id;
+    // Find the semester that covers this date
+    $semester = \App\Models\Semester::whereDate('start_date', '<=', $date)
+                                ->whereDate('end_date', '>=', $date)
+                                ->first();
+    $semesterId = $semester?->id;
 
-        // Blocked by Schedules (regular classes + admin-created bookings/maintenance)
-        $scheduleSlots = Schedule::where('lab_id', $labId)
-            ->where(function ($q) use ($dayOfWeek, $date, $semesterId) {
-                // a) Single-date event: matches exact date
-                $q->where(function ($sub) use ($date) {
-                    $sub->where('is_recurring', false)
-                        ->where('date', $date);
-                })
-                // b) Recurring class: matches day of week AND falls within a valid semester
-                ->orWhere(function ($sub) use ($dayOfWeek, $semesterId) {
-                    $sub->where('is_recurring', true)
-                        ->where('day_of_week', $dayOfWeek);
-                    if ($semesterId) {
-                        $sub->where('semester_id', $semesterId);
-                    } else {
-                        // If there's no semester covering the requested date,
-                        // recurring schedules shouldn't technically block it, but
-                        // we can optionally just match by day_of_week as a fallback.
-                        // We will require a valid semester match if the schedule has one.
-                    }
-                });
+    // 1. Blocked by Schedules (regular classes + admin-created bookings/maintenance)
+    $scheduleSlots = \App\Models\Schedule::where('lab_id', $labId)
+        ->where(function ($q) use ($dayOfWeek, $date, $semesterId) {
+            // 条件 a: 单次单天事件（必须匹配精确日期）
+            $q->where(function ($sub) use ($date) {
+                $sub->where('is_recurring', false)
+                    ->whereDate('date', $date);
             })
-            ->get(['start_time', 'end_time']);
+            // 条件 b: 循环课（匹配星期几）
+            ->orWhere(function ($sub) use ($dayOfWeek, $semesterId) {
+                $sub->where('is_recurring', true)
+                    ->where('day_of_week', $dayOfWeek);
+                
+                // 如果系统内能查到当前处于哪个学期，则同时校验学期匹配
+                // 如果查不到或数据库没绑定，为了安全起见（防止漏掉课表），可以通过可选逻辑进行限制
+                if ($semesterId) {
+                    $sub->where(function($inner) use ($semesterId) {
+                        $inner->where('semester_id', $semesterId)
+                              ->orWhereNull('semester_id'); // 兼容没有写明学期的全局循环课
+                    });
+                }
+            });
+        })
+        ->get(['start_time', 'end_time']);
 
-        // Merge and format into a unified array
-        $occupied = $scheduleSlots->map(function ($item) {
-            return [
-                'start' => substr($item->start_time, 0, 5),
-                'end'   => substr($item->end_time, 0, 5),
-            ];
-        })->values();
+    // 2. Blocked by Pending Booking Requests (方案A：还没决定的请求也直接视为占用)
+    $pendingRequests = \App\Models\BookingRequest::where('lab_id', $labId)
+        ->whereDate('date', $date)
+        ->where('status', 'pending')
+        ->get(['start_time', 'end_time']);
 
-        return response()->json($occupied);
+    // 3. 合并数据流并规范化格式
+    $occupied = collect();
+
+    foreach ($scheduleSlots as $item) {
+        $occupied->push([
+            'start' => substr($item->start_time, 0, 5),
+            'end'   => substr($item->end_time, 0, 5),
+        ]);
     }
+
+    foreach ($pendingRequests as $item) {
+        $occupied->push([
+            'start' => substr($item->start_time, 0, 5),
+            'end'   => substr($item->end_time, 0, 5),
+        ]);
+    }
+
+    // 去重并重新排索引，打包成干净的 JSON 返回给前端
+    return response()->json($occupied->unique()->values());
+}
 
     // -------------------------------------------------------------------------
     // ADMIN — List Booking Requests
@@ -227,6 +244,19 @@ class BookingRequestController extends Controller
             // ── Update Request Status ─────────────────────────────────────────
             $bookingRequest->update(['status' => 'approved']);
 
+            // ── Generate System Mail ───────────────────────────────────────────
+            $labName = $bookingRequest->laboratory->lab_name ?? "Lab #{$bookingRequest->lab_id}";
+            $dateFormatted = Carbon::parse($date)->format('l, d F Y');
+            $timeFormatted = substr($bookingRequest->start_time, 0, 5) . ' – ' . substr($bookingRequest->end_time, 0, 5);
+
+            SystemMail::create([
+                'user_id' => $userId,
+                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Approved',
+                'body'    => "Your request for {$labName} on {$dateFormatted} ({$timeFormatted}) has been Approved.",
+                'is_read' => false,
+                'type'    => 'booking_status',
+            ]);
+
             DB::commit();
 
             return redirect('/admin/booking-requests')
@@ -256,46 +286,56 @@ class BookingRequestController extends Controller
      */
     public function reject(Request $request, int $id)
     {
-        $bookingRequest = BookingRequest::with('laboratory')->findOrFail($id);
+        // 加上 try catch 捕获可能存在的数据库字段报错
+        try {
+            $bookingRequest = BookingRequest::with('laboratory')->findOrFail($id);
 
-        if ($bookingRequest->status !== 'pending') {
+            // 关键修复：使用 strtolower，防止数据库里存的是 "Pending" 导致校验失败
+            if (strtolower($bookingRequest->status) !== 'pending') {
+                return redirect('/admin/booking-requests')
+                    ->with('error', 'This request has already been processed (Current status: ' . $bookingRequest->status . ').');
+            }
+
+            $rejectionReason = $request->input('rejection_reason', 'The requested time slot is not available.');
+
+            // Update status
+            $bookingRequest->update([
+                'status'           => 'rejected', // 建议保持跟数据库大小写一致，如果数据库用大写，这里改成 'Rejected'
+                'rejection_reason' => $rejectionReason,
+            ]);
+
+            // ── Generate System Mail ───────────────────────────────────────────
+            $userId = 1; 
+
+            $labName = $bookingRequest->laboratory->lab_name ?? "Lab #{$bookingRequest->lab_id}";
+            // 确保引入了 Carbon (可以用 \Carbon\Carbon)
+            $date = \Carbon\Carbon::parse($bookingRequest->date)->format('l, d F Y');
+            $time = substr($bookingRequest->start_time, 0, 5) . ' – ' . substr($bookingRequest->end_time, 0, 5);
+
+            $body = "Dear User,\n\nWe regret to inform you that your lab booking request has been rejected by the administrator.\n\n";
+            $body .= "Laboratory: {$labName}\n";
+            $body .= "Date: {$date}\n";
+            $body .= "Time: {$time}\n";
+            $body .= "Your Reason: {$bookingRequest->reason}\n\n";
+            if ($rejectionReason) {
+                $body .= "Reason for Rejection: {$rejectionReason}\n\n";
+            }
+            $body .= "If you believe this is an error, please contact the lab administrator directly.\n\nBest regards,\nFCI Lab Management Team";
+
+            SystemMail::create([
+                'user_id' => $userId,
+                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected',
+                'body'    => $body,
+                'is_read' => false,
+                'type'    => 'booking_status',
+            ]);
+
             return redirect('/admin/booking-requests')
-                ->with('error', 'This request has already been processed.');
+                ->with('status', "Booking request #{$bookingRequest->id} has been rejected successfully.");
+
+        } catch (\Exception $e) {
+            // 如果中间有任何报错（比如 system_mails 表不存在，或者某个字段不合规），直接死在页面上让你看原因
+            dd($e->getMessage());
         }
-
-        $rejectionReason = $request->input('rejection_reason', 'The requested time slot is not available.');
-
-        // Update status
-        $bookingRequest->update([
-            'status'           => 'rejected',
-            'rejection_reason' => $rejectionReason,
-        ]);
-
-        // ── Generate System Mail ───────────────────────────────────────────
-        // TODO: Replace with auth()->id() or the actual requester's ID once Auth System is ready
-        $userId = 1; // Since Auth is pending, target user_id = 1 for testing
-
-        $labName = $bookingRequest->laboratory->lab_name ?? "Lab #{$bookingRequest->lab_id}";
-        $date = Carbon::parse($bookingRequest->date)->format('l, d F Y');
-        $time = substr($bookingRequest->start_time, 0, 5) . ' – ' . substr($bookingRequest->end_time, 0, 5);
-
-        $body = "Dear User,\n\nWe regret to inform you that your lab booking request has been rejected by the administrator.\n\n";
-        $body .= "Laboratory: {$labName}\n";
-        $body .= "Date: {$date}\n";
-        $body .= "Time: {$time}\n";
-        $body .= "Your Reason: {$bookingRequest->reason}\n\n";
-        if ($rejectionReason) {
-            $body .= "Reason for Rejection: {$rejectionReason}\n\n";
-        }
-        $body .= "If you believe this is an error or you would like to submit a new request for a different time slot, please visit our booking portal or contact the lab administrator directly.\n\nThank you for your understanding.\n\nBest regards,\nFCI Lab Management Team";
-
-        SystemMail::create([
-            'user_id' => $userId,
-            'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected',
-            'body'    => $body,
-        ]);
-
-        return redirect('/admin/booking-requests')
-            ->with('status', "Booking request #{$bookingRequest->id} has been rejected. Notification recorded in system_mails.");
     }
 }

@@ -10,6 +10,8 @@ class SystemMail extends Model
         'user_id',
         'subject',
         'body',
+        'is_read',
+        'type',
     ];
 
     public function user()

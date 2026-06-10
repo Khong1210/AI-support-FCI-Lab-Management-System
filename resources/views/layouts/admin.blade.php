@@ -384,7 +384,18 @@
                 <li class="nav-item">
                     <a href="{{ url('/admin/mail') }}" class="nav-link {{ request()->is('admin/mail*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>
-                        <p>Mail / Inbox</p>
+                        <p>
+                            Mail / Inbox
+                            @php
+                                // TODO: replace 1 with auth()->id() when Auth is ready
+                                $unreadMailsCount = \App\Models\SystemMail::where('user_id', 1)->where('is_read', false)->count();
+                            @endphp
+                            @if($unreadMailsCount > 0)
+                                <span style="background:#ef4444;color:#fff;border-radius:999px;font-size:10px;padding:1px 7px;margin-left:6px;font-weight:700;">
+                                    {{ $unreadMailsCount }}
+                                </span>
+                            @endif
+                        </p>
                     </a>
                 </li>
             </ul>

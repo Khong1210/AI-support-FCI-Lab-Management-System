@@ -211,16 +211,13 @@
                                 </form>
 
                                 {{-- Reject Button (triggers modal) --}}
-                                <button type="button" class="btn-reject"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#rejectModal"
-                                        data-request-id="{{ $req->id }}"
-                                        data-requester="{{ $req->user->name ?? 'System User' }}"
-                                        data-lab="{{ $req->laboratory->lab_name ?? '' }}"
-                                        data-date="{{ $req->date }}"
-                                        title="Reject this request">
-                                    <i class="fas fa-times me-1"></i>Reject
-                                </button>
+                               <form action="{{ url('/admin/booking-requests/' . $req->id . '/reject') }}" method="POST" class="d-inline-block reject-form">
+                                    @csrf
+                                    @method('PUT') {{-- 或者是 @method('POST')，取决于你的 web.php 路由配置 --}}
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Reject this request" onclick="return confirm('Are you sure you want to reject this request?')">
+                                        <i class="fas fa-times me-1"></i>Reject
+                                    </button>
+                                </form>
                             @else
                                 <span class="text-muted small">—</span>
                             @endif
