@@ -346,9 +346,25 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/admin/bookings') }}" class="nav-link {{ request()->is('admin/bookings*') ? 'active' : '' }}">
+                    <a href="{{ url('/admin/bookings') }}" class="nav-link {{ request()->is('admin/bookings') || request()->is('admin/bookings/*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-calendar-check"></i></div>
                         <p>Bookings</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url('/admin/booking-requests') }}" class="nav-link {{ request()->is('admin/booking-requests*') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>
+                        <p>
+                            Booking Requests
+                            @php
+                                $pendingRequestsCount = \App\Models\BookingRequest::where('status','pending')->count();
+                            @endphp
+                            @if($pendingRequestsCount > 0)
+                                <span style="background:#ef4444;color:#fff;border-radius:999px;font-size:10px;padding:1px 7px;margin-left:6px;font-weight:700;">
+                                    {{ $pendingRequestsCount }}
+                                </span>
+                            @endif
+                        </p>
                     </a>
                 </li>
 

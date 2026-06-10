@@ -1,14 +1,18 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AiProxyController;
 use App\Http\Controllers\AiSchedulerController;
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\BookingRequestController;
+use App\Http\Controllers\CourseController;
 use App\Http\Controllers\EquipmentController;
 use App\Http\Controllers\LaboratoryController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\SoftwareController;
-use App\Http\Controllers\AiProxyController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -27,7 +31,6 @@ Route::put('/admin/users/{user}', [AdminController::class, 'updateUser']);
 Route::delete('/admin/users/{user}', [AdminController::class, 'destroyUser']);
 
 // Course management
-use App\Http\Controllers\CourseController;
 Route::get('/admin/courses', [CourseController::class, 'index']);
 Route::get('/admin/courses/add', [CourseController::class, 'create']);
 Route::get('/admin/courses/create', [CourseController::class, 'create']);
@@ -73,8 +76,6 @@ Route::put('/admin/bookings/{booking}/reject', [BookingController::class, 'rejec
 Route::delete('/admin/bookings/{booking}', [BookingController::class, 'destroy']);
 
 // Schedule management
-use App\Http\Controllers\ScheduleController;
-use App\Http\Controllers\SemesterController;
 Route::get('/admin/schedules', [ScheduleController::class, 'index']);
 Route::get('/admin/schedules/add', [ScheduleController::class, 'create']);
 Route::get('/admin/schedules/create', [ScheduleController::class, 'create']);
@@ -112,3 +113,24 @@ Route::get('/ai-scheduler', [AiSchedulerController::class, 'index']);
 
 // AI proxy endpoint (server-side forwarding to Generative API)
 Route::post('/api/ai/generate', [AiProxyController::class, 'generate']);
+
+// ============================================================
+// Booking Request System
+// ============================================================
+
+// Public: booking request form (GET = form, POST = submit)
+Route::get('/booking-request', [BookingRequestController::class, 'create']);
+Route::post('/booking-request', [BookingRequestController::class, 'store']);
+
+// Public AJAX: returns occupied time blocks for a lab + date
+// GET /api/booking-requests/availability?lab_id=X&date=Y
+Route::get('/api/booking-requests/availability', [BookingRequestController::class, 'checkAvailability']);
+
+// Admin: list all booking requests
+Route::get('/admin/booking-requests', [BookingRequestController::class, 'index']);
+
+// Admin: approve a pending request (creates booking + schedule record)
+Route::put('/admin/booking-requests/{id}/approve', [BookingRequestController::class, 'approve']);
+
+// Admin: reject a pending request (logs mock email to laravel.log)
+Route::put('/admin/booking-requests/{id}/reject', [BookingRequestController::class, 'reject']);
