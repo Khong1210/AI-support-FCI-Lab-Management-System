@@ -7,9 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class BookingRequest extends Model
 {
     protected $fillable = [
+        'user_id',
         'lab_id',
-        'requester_name',
-        'requester_email',
         'date',
         'start_time',
         'end_time',
@@ -24,6 +23,14 @@ class BookingRequest extends Model
     public function laboratory()
     {
         return $this->belongsTo(Laboratory::class, 'lab_id');
+    }
+
+    /**
+     * The user who submitted this request.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     /**

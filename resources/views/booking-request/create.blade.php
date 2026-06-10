@@ -293,30 +293,7 @@
                 <form action="{{ url('/booking-request') }}" method="POST" class="p-4" id="bookingForm">
                     @csrf
 
-                    {{-- ── Section: Contact Info ── --}}
-                    <p class="section-title"><i class="fas fa-user me-1"></i>Your Information</p>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                            <input type="text" name="requester_name" id="requester_name"
-                                   class="form-control @error('requester_name') is-invalid @enderror"
-                                   value="{{ old('requester_name') }}"
-                                   placeholder="e.g. Nguyen Van An" required>
-                            @error('requester_name')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Email Address <span class="text-danger">*</span></label>
-                            <input type="email" name="requester_email" id="requester_email"
-                                   class="form-control @error('requester_email') is-invalid @enderror"
-                                   value="{{ old('requester_email') }}"
-                                   placeholder="e.g. student@university.edu" required>
-                            @error('requester_email')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                    </div>
+
 
                     {{-- ── Section: Booking Details ── --}}
                     <p class="section-title"><i class="fas fa-door-open me-1"></i>Booking Details</p>

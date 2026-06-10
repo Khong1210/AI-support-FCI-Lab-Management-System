@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\BookingRejectedMail;
 use App\Models\BookingRequest;
 use App\Models\Booking;
 use App\Models\Laboratory;
 use App\Models\Schedule;
 use App\Models\Semester;
+use App\Models\SystemMail;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,8 +39,6 @@ class BookingRequestController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'requester_name'  => 'required|string|max:255',
-            'requester_email' => 'required|email|max:255',
             'lab_id'          => 'required|exists:laboratories,id',
             'date'            => 'required|date|after_or_equal:today',
             'start_time'      => ['required', 'regex:/^(0[8-9]|1[0-7]):00$/'],
@@ -49,9 +47,8 @@ class BookingRequestController extends Controller
         ]);
 
         BookingRequest::create([
+            'user_id'         => 1, // TODO: Replace with auth()->id() once Auth System is ready
             'lab_id'          => $request->input('lab_id'),
-            'requester_name'  => $request->input('requester_name'),
-            'requester_email' => $request->input('requester_email'),
             'date'            => $request->input('date'),
             'start_time'      => $request->input('start_time') . ':00',
             'end_time'        => $request->input('end_time') . ':00',
@@ -69,8 +66,9 @@ class BookingRequestController extends Controller
 
     /**
      * AJAX endpoint: Return all occupied time blocks for a given lab + date.
-     * Checks BOTH the `schedules` table (recurring classes + approved bookings)
-     * AND the `bookings` table (approved ad-hoc bookings with status=2).
+     * Checks the `schedules` table for:
+     *   a) Single-date bookings (date matches exactly).
+     *   b) Recurring schedules (is_recurring=1, day_of_week matches, and date falls within the semester).
      *
      * GET /api/booking-requests/availability?lab_id=X&date=Y
      *
@@ -91,30 +89,38 @@ class BookingRequestController extends Controller
         $date      = $request->input('date');
         $dayOfWeek = Carbon::parse($date)->format('l'); // e.g. "Monday"
 
-        // 1) Blocked by Schedules (regular classes + admin-created bookings/maintenance)
+        // Find the semester that covers this date
+        $semester = Semester::whereDate('start_date', '<=', $date)
+                            ->whereDate('end_date', '>=', $date)
+                            ->first();
+        $semesterId = $semester?->id;
+
+        // Blocked by Schedules (regular classes + admin-created bookings/maintenance)
         $scheduleSlots = Schedule::where('lab_id', $labId)
-            ->where(function ($q) use ($dayOfWeek, $date) {
-                // Recurring class: matches day of week
-                $q->where(function ($sub) use ($dayOfWeek) {
-                    $sub->where('is_recurring', true)
-                        ->where('day_of_week', $dayOfWeek);
-                })
-                // One-time event: matches exact date
-                ->orWhere(function ($sub) use ($date) {
+            ->where(function ($q) use ($dayOfWeek, $date, $semesterId) {
+                // a) Single-date event: matches exact date
+                $q->where(function ($sub) use ($date) {
                     $sub->where('is_recurring', false)
                         ->where('date', $date);
+                })
+                // b) Recurring class: matches day of week AND falls within a valid semester
+                ->orWhere(function ($sub) use ($dayOfWeek, $semesterId) {
+                    $sub->where('is_recurring', true)
+                        ->where('day_of_week', $dayOfWeek);
+                    if ($semesterId) {
+                        $sub->where('semester_id', $semesterId);
+                    } else {
+                        // If there's no semester covering the requested date,
+                        // recurring schedules shouldn't technically block it, but
+                        // we can optionally just match by day_of_week as a fallback.
+                        // We will require a valid semester match if the schedule has one.
+                    }
                 });
             })
             ->get(['start_time', 'end_time']);
 
-        // 2) Blocked by approved Bookings (status=2 means approved in your system)
-        $bookingSlots = Booking::where('lab_id', $labId)
-            ->where('date', $date)
-            ->where('status', 2)
-            ->get(['start_time', 'end_time']);
-
-        // 3) Merge and format both result sets into a unified array
-        $occupied = $scheduleSlots->merge($bookingSlots)->map(function ($item) {
+        // Merge and format into a unified array
+        $occupied = $scheduleSlots->map(function ($item) {
             return [
                 'start' => substr($item->start_time, 0, 5),
                 'end'   => substr($item->end_time, 0, 5),
@@ -134,7 +140,7 @@ class BookingRequestController extends Controller
      */
     public function index(Request $request)
     {
-        $query = BookingRequest::with('laboratory');
+        $query = BookingRequest::with(['laboratory', 'user']);
 
         // Filter by status
         if ($status = $request->input('status')) {
@@ -182,19 +188,21 @@ class BookingRequestController extends Controller
 
             // ── Semester Matching ─────────────────────────────────────────────
             // Find the semester whose date range covers the booking date.
-            // If none found, semester_id is set to null (graceful degradation).
+            // If no match is found, save semester_id = null
             $semester = Semester::whereDate('start_date', '<=', $date)
                                 ->whereDate('end_date', '>=', $date)
                                 ->first();
-            $semesterId = $semester?->id; // null if no matching semester
+            $semesterId = $semester?->id;
 
             // ── Create Booking record ─────────────────────────────────────────
             // TODO: Replace hardcoded user_id with auth()->id() once Auth System is ready
+            $userId = 1;
+
             $booking = Booking::create([
                 'lab_id'      => $bookingRequest->lab_id,
                 'type'        => 'booking',
-                'user_id'     => 1, // TODO: Replace with auth()->id() once Auth System is ready
-                'booker_name' => $bookingRequest->requester_name,
+                'user_id'     => $userId,
+                'booker_name' => $bookingRequest->user->name ?? 'User',
                 'purpose'     => $bookingRequest->reason,
                 'date'        => $date,
                 'start_time'  => $bookingRequest->start_time,
@@ -221,12 +229,6 @@ class BookingRequestController extends Controller
 
             DB::commit();
 
-            Log::info('✅ [BookingRequest] Approved request #' . $bookingRequest->id
-                . ' | Lab: ' . ($bookingRequest->laboratory->lab_name ?? $bookingRequest->lab_id)
-                . ' | Date: ' . $date
-                . ' | Semester: ' . ($semester?->name ?? 'N/A (no matching semester)')
-                . ' | Created Booking #' . $booking->id);
-
             return redirect('/admin/booking-requests')
                 ->with('status', "Booking request #{$bookingRequest->id} has been approved and scheduled successfully.");
 
@@ -244,20 +246,11 @@ class BookingRequestController extends Controller
     // -------------------------------------------------------------------------
 
     /**
-     * Reject a booking request and send a mock email notification.
+     * Reject a booking request and generate a record in the system_mails table.
      *
      * Rejection flow:
      *  1. Mark the booking request as 'rejected'.
-     *  2. Instantiate BookingRejectedMail and call simulateSend() which writes
-     *     the full email content to storage/logs/laravel.log.
-     *
-     * ── How to demonstrate this to your professor ──────────────────────────
-     *  • Open storage/logs/laravel.log after clicking Reject.
-     *  • You will see a structured log entry starting with "📧 [MOCK EMAIL]"
-     *    containing the exact To address, subject, and body that would be sent.
-     *  • To activate REAL email: configure MAIL_* in .env and replace the
-     *    simulateSend() call with: Mail::to(...)->send(new BookingRejectedMail(...))
-     * ──────────────────────────────────────────────────────────────────────
+     *  2. Generate a record in `system_mails`.
      *
      * PUT /admin/booking-requests/{id}/reject
      */
@@ -278,14 +271,31 @@ class BookingRequestController extends Controller
             'rejection_reason' => $rejectionReason,
         ]);
 
-        // ── Mock Email Notification ───────────────────────────────────────────
-        // TODO: Replace the simulateSend() call below with the following once SMTP is configured:
-        //   Mail::to($bookingRequest->requester_email)->send(new BookingRejectedMail($bookingRequest));
-        // Until then, simulateSend() logs the complete email content to storage/logs/laravel.log.
-        $mail = new BookingRejectedMail($bookingRequest);
-        $mail->simulateSend();
+        // ── Generate System Mail ───────────────────────────────────────────
+        // TODO: Replace with auth()->id() or the actual requester's ID once Auth System is ready
+        $userId = 1; // Since Auth is pending, target user_id = 1 for testing
+
+        $labName = $bookingRequest->laboratory->lab_name ?? "Lab #{$bookingRequest->lab_id}";
+        $date = Carbon::parse($bookingRequest->date)->format('l, d F Y');
+        $time = substr($bookingRequest->start_time, 0, 5) . ' – ' . substr($bookingRequest->end_time, 0, 5);
+
+        $body = "Dear User,\n\nWe regret to inform you that your lab booking request has been rejected by the administrator.\n\n";
+        $body .= "Laboratory: {$labName}\n";
+        $body .= "Date: {$date}\n";
+        $body .= "Time: {$time}\n";
+        $body .= "Your Reason: {$bookingRequest->reason}\n\n";
+        if ($rejectionReason) {
+            $body .= "Reason for Rejection: {$rejectionReason}\n\n";
+        }
+        $body .= "If you believe this is an error or you would like to submit a new request for a different time slot, please visit our booking portal or contact the lab administrator directly.\n\nThank you for your understanding.\n\nBest regards,\nFCI Lab Management Team";
+
+        SystemMail::create([
+            'user_id' => $userId,
+            'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected',
+            'body'    => $body,
+        ]);
 
         return redirect('/admin/booking-requests')
-            ->with('status', "Booking request #{$bookingRequest->id} has been rejected. Notification logged to laravel.log.");
+            ->with('status', "Booking request #{$bookingRequest->id} has been rejected. Notification recorded in system_mails.");
     }
 }

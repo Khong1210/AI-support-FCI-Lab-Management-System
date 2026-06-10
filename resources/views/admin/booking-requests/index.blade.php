@@ -158,8 +158,8 @@
                     <tr>
                         <td class="ps-4 text-muted">{{ $loop->iteration }}</td>
                         <td>
-                            <div class="fw-semibold" style="font-size:0.875rem;">{{ $req->requester_name }}</div>
-                            <div class="text-muted" style="font-size:0.75rem;">{{ $req->requester_email }}</div>
+                            <div class="fw-semibold" style="font-size:0.875rem;">{{ $req->user->name ?? 'System User' }}</div>
+                            <div class="text-muted" style="font-size:0.75rem;">{{ $req->user->email ?? 'N/A' }}</div>
                         </td>
                         <td>
                             <span class="fw-medium">{{ $req->laboratory->lab_name ?? '—' }}</span>
@@ -215,7 +215,7 @@
                                         data-bs-toggle="modal"
                                         data-bs-target="#rejectModal"
                                         data-request-id="{{ $req->id }}"
-                                        data-requester="{{ $req->requester_name }}"
+                                        data-requester="{{ $req->user->name ?? 'System User' }}"
                                         data-lab="{{ $req->laboratory->lab_name ?? '' }}"
                                         data-date="{{ $req->date }}"
                                         title="Reject this request">
