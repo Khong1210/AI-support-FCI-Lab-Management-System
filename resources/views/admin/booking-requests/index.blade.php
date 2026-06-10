@@ -123,8 +123,8 @@
             <a href="{{ url('/admin/booking-requests') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-redo me-1"></i>Clear
             </a>
-            <a href="{{ url('/booking-request') }}" class="btn btn-outline-info btn-sm ms-auto" target="_blank">
-                <i class="fas fa-external-link-alt me-1"></i>Public Form
+            <a href="{{ url('/admin/booking-requests/create') }}" class="btn btn-outline-info btn-sm ms-auto">
+                <i class="fas fa-plus me-1"></i>Add Request
             </a>
         </div>
     </form>

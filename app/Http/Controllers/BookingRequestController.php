@@ -29,7 +29,7 @@ class BookingRequestController extends Controller
                             ->orderBy('lab_name')
                             ->get();
 
-        return view('booking-request.create', compact('laboratories'));
+        return view('admin.booking-requests.create', compact('laboratories'));
     }
 
     /**
@@ -56,7 +56,7 @@ class BookingRequestController extends Controller
             'status'          => 'pending',
         ]);
 
-        return redirect('/booking-request')
+        return redirect('/admin/booking-requests')
             ->with('success', 'Your booking request has been submitted successfully! The lab administrator will review it shortly.');
     }
 

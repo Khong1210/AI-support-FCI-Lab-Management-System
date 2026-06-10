@@ -118,13 +118,13 @@ Route::post('/api/ai/generate', [AiProxyController::class, 'generate']);
 // Booking Request System
 // ============================================================
 
-// Public: booking request form (GET = form, POST = submit)
-Route::get('/booking-request', [BookingRequestController::class, 'create']);
-Route::post('/booking-request', [BookingRequestController::class, 'store']);
+// Admin: add booking request form
+Route::get('/admin/booking-requests/create', [BookingRequestController::class, 'create']);
+Route::post('/admin/booking-requests', [BookingRequestController::class, 'store']);
 
-// Public AJAX: returns occupied time blocks for a lab + date
-// GET /api/booking-requests/availability?lab_id=X&date=Y
-Route::get('/api/booking-requests/availability', [BookingRequestController::class, 'checkAvailability']);
+// Admin AJAX: returns occupied time blocks for a lab + date
+// GET /admin/booking-requests/check-availability?lab_id=X&date=Y
+Route::get('/admin/booking-requests/check-availability', [BookingRequestController::class, 'checkAvailability']);
 
 // Admin: list all booking requests
 Route::get('/admin/booking-requests', [BookingRequestController::class, 'index']);
