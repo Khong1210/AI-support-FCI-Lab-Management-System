@@ -75,7 +75,7 @@
             </span>
         </div>
 
-        @forelse($mails as $mail)
+       @forelse($mails as $mail)
             <div class="mail-card {{ !$mail->is_read ? 'unread' : '' }}">
                 <div class="mail-header">
                     <div class="mail-subject">

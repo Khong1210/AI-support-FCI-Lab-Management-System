@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\SystemMail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
 
 class MailController extends Controller
 {
@@ -13,8 +15,8 @@ class MailController extends Controller
      */
     public function index(Request $request)
     {
-        // TODO: Replace hardcoded 1 with auth()->id() when Auth system is ready
-        $userId = 1;
+       // 1. Capture the authenticated user ID from the active session context
+        $userId = Auth::id();
 
         // Fetch all mails for this user
         $mails = SystemMail::where('user_id', $userId)

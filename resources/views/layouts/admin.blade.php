@@ -356,13 +356,21 @@
                         <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>
                         <p>
                             Booking Requests
+                            
                             @php
-                                $pendingRequestsCount = \App\Models\BookingRequest::where('status','pending')->count();
+                                $user = auth()->user();
                             @endphp
-                            @if($pendingRequestsCount > 0)
-                                <span style="background:#ef4444;color:#fff;border-radius:999px;font-size:10px;padding:1px 7px;margin-left:6px;font-weight:700;">
-                                    {{ $pendingRequestsCount }}
-                                </span>
+
+                            @if(in_array((int)$user->user_role, [1, 2]))
+                                @php
+                                    $pendingRequestsCount = \App\Models\BookingRequest::where('status', 'pending')->count();
+                                @endphp
+                                
+                                @if($pendingRequestsCount > 0)
+                                    <span style="background:#ef4444; color:#fff; border-radius:999px; font-size:10px; padding:1px 7px; margin-left:6px; font-weight:700;">
+                                        {{ $pendingRequestsCount }}
+                                    </span>
+                                @endif
                             @endif
                         </p>
                     </a>
@@ -387,11 +395,17 @@
                         <p>
                             Mail / Inbox
                             @php
-                                // TODO: replace 1 with auth()->id() when Auth is ready
-                                $unreadMailsCount = \App\Models\SystemMail::where('user_id', 1)->where('is_read', false)->count();
+                                // 1. Fetch the authenticated user's ID via the safe Facade method to avoid IDE red lines
+                                $currentUserId = \Illuminate\Support\Facades\Auth::id();
+                                
+                                // 2. Count unread system notifications belonging strictly to the logged-in user
+                                $unreadMailsCount = \App\Models\SystemMail::where('user_id', $currentUserId)
+                                    ->where('is_read', false)
+                                    ->count();
                             @endphp
+                            
                             @if($unreadMailsCount > 0)
-                                <span style="background:#ef4444;color:#fff;border-radius:999px;font-size:10px;padding:1px 7px;margin-left:6px;font-weight:700;">
+                                <span style="background:#ef4444; color:#fff; border-radius:999px; font-size:10px; padding:1px 7px; margin-left:6px; font-weight:700;">
                                     {{ $unreadMailsCount }}
                                 </span>
                             @endif
@@ -409,9 +423,13 @@
                     <span>Settings</span>
                 </a>
                 
-                <a href="#" class="footer-btn text-danger-hover" title="Logout">
+                <a href="#" class="footer-btn text-danger-hover" title="Logout" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                     <i class="fas fa-sign-out-alt"></i>
                     <span>Logout</span>
+                    
+                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                        @csrf
+                    </form>
                 </a>
             </div>
         </div>

@@ -8,9 +8,11 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title">Booking Request List</h3>
-            <a href="{{ url('/admin/bookings/add') }}" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus mr-1"></i> Add Booking
-            </a>
+            @if(auth()->check() && in_array(auth()->user()->role_id, [1, 4]))
+                <a href="{{ url('/admin/bookings/add') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus mr-1"></i> Add Booking
+                </a>
+            @endif
         </div>
         <div class="card-body">
             <form method="GET" action="{{ url('/admin/bookings') }}" class="form-inline mb-3">
@@ -71,11 +73,13 @@
                                             <button type="submit" class="btn btn-sm btn-warning">Reject</button>
                                         </form>
                                     @endif
-                                    <form action="{{ url('/admin/bookings/' . $booking->id) }}" method="POST" class="d-inline-block delete-form">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                    </form>
+                                    @if(auth()->check() && in_array(auth()->user()->role_id, [1, 4]))
+                                        <form action="{{ url('/admin/bookings/' . $booking->id) }}" method="POST" class="d-inline-block delete-form">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    @endif
                                 </td>
                             </tr>
                         @empty

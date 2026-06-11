@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Laboratory;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class BookingController extends Controller
 {
@@ -19,6 +20,11 @@ class BookingController extends Controller
     public function index(Request $request)
     {
         $query = Booking::with(['user', 'laboratory']);
+
+        // Scenario A: Lecturer Personal Data Isolation
+        if (auth()->check() && auth()->user()->role_id == 5) {
+            $query->where('user_id', auth()->id());
+        }
 
         if ($status = $request->input('status')) {
             $query->where('status', $status);

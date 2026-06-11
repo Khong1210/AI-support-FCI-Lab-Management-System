@@ -12,6 +12,8 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
+
 
 class BookingRequestController extends Controller
 {
@@ -38,22 +40,24 @@ class BookingRequestController extends Controller
      */
     public function store(Request $request)
     {
+        // 2. Validate the incoming transactional form request fields
         $request->validate([
-            'lab_id'          => 'required|exists:laboratories,id',
-            'date'            => 'required|date|after_or_equal:today',
-            'start_time'      => ['required', 'regex:/^(0[8-9]|1[0-7]):00$/'],
-            'end_time'        => ['required', 'regex:/^(0[9-9]|1[0-8]):00$/', 'after:start_time'],
-            'reason'          => 'required|string|max:1000',
+            'lab_id'     => 'required|exists:laboratories,id',
+            'date'       => 'required|date|after_or_equal:today',
+            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-7]):00$/'],
+            'end_time'   => ['required', 'regex:/^(0[9-9]|1[0-8]):00$/', 'after:start_time'],
+            'reason'     => 'required|string|max:1000',
         ]);
 
+        // 3. Persist the database entity bound to the authenticated user session context
         BookingRequest::create([
-            'user_id'         => 1, // TODO: Replace with auth()->id() once Auth System is ready
-            'lab_id'          => $request->input('lab_id'),
-            'date'            => $request->input('date'),
-            'start_time'      => $request->input('start_time') . ':00',
-            'end_time'        => $request->input('end_time') . ':00',
-            'reason'          => $request->input('reason'),
-            'status'          => 'pending',
+            'user_id'    => Auth::id(),
+            'lab_id'     => $request->input('lab_id'),
+            'date'       => $request->input('date'),
+            'start_time' => $request->input('start_time') . ':00',
+            'end_time'   => $request->input('end_time') . ':00',
+            'reason'     => $request->input('reason'),
+            'status'     => 'pending',
         ]);
 
         return redirect('/admin/booking-requests')
@@ -146,31 +150,40 @@ class BookingRequestController extends Controller
     // 去重并重新排索引，打包成干净的 JSON 返回给前端
     return response()->json($occupied->unique()->values());
 }
-
-    // -------------------------------------------------------------------------
-    // ADMIN — List Booking Requests
-    // -------------------------------------------------------------------------
-
-    /**
-     * Show the admin list of all booking requests.
+/**
+     * Display a filtered listing of booking requests scoped by authorization levels.
      * Accessible at GET /admin/booking-requests
      */
     public function index(Request $request)
     {
+        $user = Auth::user();
+        
+        // 1. Initialize query builder with eager loaded relationship constraints
         $query = BookingRequest::with(['laboratory', 'user']);
 
-        // Filter by status
+        // 2. Enforce structural data isolation boundaries based on administrative clearance
+        if (!in_array((int)$user->user_role, [1, 2])) {
+            // Standard consumer accounts are strictly restricted to their own data records
+            $query->where('user_id', $user->id);
+        }
+
+        // 3. Apply conditional runtime data filters requested by the interface matching statuses
         if ($status = $request->input('status')) {
             $query->where('status', $status);
         }
 
-        // Filter by lab
+        // 4. Apply conditional runtime data filters targeting explicit laboratory selections
         if ($labId = $request->input('lab_id')) {
             $query->where('lab_id', $labId);
         }
 
-        $bookingRequests = $query->orderByDesc('date')->orderBy('start_time')->get();
-        $laboratories    = Laboratory::orderBy('lab_name')->get();
+        // 5. Execute compilation query ordered by placement dates and sequential timeslots
+        $bookingRequests = $query->orderByDesc('date')
+            ->orderBy('start_time')
+            ->get();
+            
+        // 6. Fetch lookups needed to render UI filter selection bars across interfaces
+        $laboratories = Laboratory::orderBy('lab_name')->get();
 
         return view('admin.booking-requests.index', compact('bookingRequests', 'laboratories'));
     }
@@ -202,7 +215,7 @@ class BookingRequestController extends Controller
         DB::beginTransaction();
         try {
             $date = $bookingRequest->date;
-
+            $userId = $bookingRequest->user_id; 
             // ── Semester Matching ─────────────────────────────────────────────
             // Find the semester whose date range covers the booking date.
             // If no match is found, save semester_id = null
@@ -212,8 +225,7 @@ class BookingRequestController extends Controller
             $semesterId = $semester?->id;
 
             // ── Create Booking record ─────────────────────────────────────────
-            // TODO: Replace hardcoded user_id with auth()->id() once Auth System is ready
-            $userId = 1;
+            
 
             $booking = Booking::create([
                 'lab_id'      => $bookingRequest->lab_id,
@@ -286,42 +298,46 @@ class BookingRequestController extends Controller
      */
     public function reject(Request $request, int $id)
     {
-        // 加上 try catch 捕获可能存在的数据库字段报错
         try {
+            // 1. Fetch the target booking request along with its laboratory relationship parameters
             $bookingRequest = BookingRequest::with('laboratory')->findOrFail($id);
 
-            // 关键修复：使用 strtolower，防止数据库里存的是 "Pending" 导致校验失败
+            // 2. Normalize status checks using lowercase conversions to prevent execution mismatches
             if (strtolower($bookingRequest->status) !== 'pending') {
                 return redirect('/admin/booking-requests')
                     ->with('error', 'This request has already been processed (Current status: ' . $bookingRequest->status . ').');
             }
 
+            // 3. Fallback safely to a default string if no custom rejection text is provided
             $rejectionReason = $request->input('rejection_reason', 'The requested time slot is not available.');
 
-            // Update status
+            // 4. Persist the state change tracking updates directly into the database entity
             $bookingRequest->update([
-                'status'           => 'rejected', // 建议保持跟数据库大小写一致，如果数据库用大写，这里改成 'Rejected'
+                'status'           => 'rejected',
                 'rejection_reason' => $rejectionReason,
             ]);
 
-            // ── Generate System Mail ───────────────────────────────────────────
-            $userId = 1; 
+            // 5. Safely bind the target recipient matching the original applicant entity reference
+            $userId = $bookingRequest->user_id; 
 
             $labName = $bookingRequest->laboratory->lab_name ?? "Lab #{$bookingRequest->lab_id}";
-            // 确保引入了 Carbon (可以用 \Carbon\Carbon)
             $date = \Carbon\Carbon::parse($bookingRequest->date)->format('l, d F Y');
             $time = substr($bookingRequest->start_time, 0, 5) . ' – ' . substr($bookingRequest->end_time, 0, 5);
 
+            // 6. Assemble the structured, formal plain text email notification body payload
             $body = "Dear User,\n\nWe regret to inform you that your lab booking request has been rejected by the administrator.\n\n";
             $body .= "Laboratory: {$labName}\n";
             $body .= "Date: {$date}\n";
             $body .= "Time: {$time}\n";
             $body .= "Your Reason: {$bookingRequest->reason}\n\n";
-            if ($rejectionReason) {
+            
+            if (!empty($rejectionReason)) {
                 $body .= "Reason for Rejection: {$rejectionReason}\n\n";
             }
+            
             $body .= "If you believe this is an error, please contact the lab administrator directly.\n\nBest regards,\nFCI Lab Management Team";
 
+            // 7. Dispatch the system communication mail to the isolated recipient index
             SystemMail::create([
                 'user_id' => $userId,
                 'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected',
@@ -334,8 +350,8 @@ class BookingRequestController extends Controller
                 ->with('status', "Booking request #{$bookingRequest->id} has been rejected successfully.");
 
         } catch (\Exception $e) {
-            // 如果中间有任何报错（比如 system_mails 表不存在，或者某个字段不合规），直接死在页面上让你看原因
-            dd($e->getMessage());
+            // 8. Log the traceback details internally and trigger a detailed exception dump for easier debugging
+             dd($e->getMessage());
         }
     }
 }

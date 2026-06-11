@@ -130,7 +130,7 @@
     </form>
 </div>
 
-{{-- ── Booking Requests Table ── --}}
+{{-- ── Booking Requests Balanced View Grid ── --}}
 <div class="card shadow-sm border-0" style="border-radius:12px; overflow:hidden;">
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 px-4">
         <h5 class="mb-0 fw-semibold" style="font-size:0.95rem;">
@@ -150,7 +150,9 @@
                     <th>Reason</th>
                     <th>Submitted</th>
                     <th>Status</th>
-                    <th class="text-center">Actions</th>
+                    @if(in_array((int)auth()->user()->user_role, [1, 2]))
+                        <th class="text-center">Actions</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -158,7 +160,7 @@
                     <tr>
                         <td class="ps-4 text-muted">{{ $loop->iteration }}</td>
                         <td>
-                            <div class="fw-semibold" style="font-size:0.875rem;">{{ $req->user->name ?? 'System User' }}</div>
+                            <div class="fw-semibold" style="font-size:0.875rem;">{{ $req->user->username ?? 'System User' }}</div>
                             <div class="text-muted" style="font-size:0.75rem;">{{ $req->user->email ?? 'N/A' }}</div>
                         </td>
                         <td>
@@ -171,9 +173,7 @@
                             </span>
                         </td>
                         <td>
-                            <span class="text-muted"
-                                  title="{{ $req->reason }}"
-                                  style="cursor:help;">
+                            <span class="text-muted" title="{{ $req->reason }}" style="cursor:help;">
                                 {{ \Str::limit($req->reason, 50) }}
                             </span>
                             @if($req->rejection_reason)
@@ -197,37 +197,38 @@
                                 @endif
                             </span>
                         </td>
-                        <td class="text-center">
-                            @if($req->status === 'pending')
-                                {{-- Approve Button --}}
-                                <form action="{{ url('/admin/booking-requests/' . $req->id . '/approve') }}"
-                                      method="POST" class="d-inline-block approve-form">
-                                    @csrf
-                                    @method('PUT')
-                                    <button type="submit" class="btn-approve me-1"
-                                            title="Approve this request">
-                                        <i class="fas fa-check me-1"></i>Approve
-                                    </button>
-                                </form>
+                        
+                        @if(in_array((int)auth()->user()->user_role, [1, 2]))
+                            <td class="text-center">
+                                @if($req->status === 'pending')
+                                    {{-- Approve Action Trigger --}}
+                                    <form action="{{ url('/admin/booking-requests/' . $req->id . '/approve') }}" method="POST" class="d-inline-block approve-form">
+                                        @csrf
+                                        @method('PUT')
+                                        <button type="submit" class="btn-approve me-1" title="Approve this request">
+                                            <i class="fas fa-check me-1"></i>Approve
+                                        </button>
+                                    </form>
 
-                                {{-- Reject Button (triggers modal) --}}
-                               <form action="{{ url('/admin/booking-requests/' . $req->id . '/reject') }}" method="POST" class="d-inline-block reject-form">
-                                    @csrf
-                                    @method('PUT') {{-- 或者是 @method('POST')，取决于你的 web.php 路由配置 --}}
-                                    <button type="submit" class="btn btn-sm btn-danger" title="Reject this request" onclick="return confirm('Are you sure you want to reject this request?')">
-                                        <i class="fas fa-times me-1"></i>Reject
-                                    </button>
-                                </form>
-                            @else
-                                <span class="text-muted small">—</span>
-                            @endif
-                        </td>
+                                    {{-- Reject Action Trigger --}}
+                                    <form action="{{ url('/admin/booking-requests/' . $req->id . '/reject') }}" method="POST" class="d-inline-block reject-form">
+                                        @csrf
+                                        @method('PUT')
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Reject this request" onclick="return confirm('Are you sure you want to reject this request?')">
+                                            <i class="fas fa-times me-1"></i>Reject
+                                        </button>
+                                    </form>
+                                @else
+                                    <span class="text-muted small">—</span>
+                                @endif
+                            </td>
+                        @endif
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="text-center py-5 text-muted">
+                        <td colspan="{{ in_array((int)auth()->user()->user_role, [1, 2]) ? '8' : '7' }}" class="text-center py-5 text-muted">
                             <i class="fas fa-inbox fa-2x mb-2 d-block opacity-50"></i>
-                            No booking requests found.
+                            No booking requests found matching your filter options.
                         </td>
                     </tr>
                 @endforelse
