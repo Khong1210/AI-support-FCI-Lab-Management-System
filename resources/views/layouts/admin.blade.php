@@ -298,7 +298,9 @@
                 <i class="fas fa-bars"></i>
             </div>
         </div>
-
+        @php
+            $user = auth()->user();
+        @endphp
         <div class="sidebar-menu-wrapper">
             <ul class="nav nav-sidebar flex-column">
                 <li class="nav-item">
@@ -309,12 +311,14 @@
                 </li>
 
                 <li class="custom-sidebar-divider" data-title="Management">Management</li>
-                <li class="nav-item">
-                    <a href="{{ url('/admin/users') }}" class="nav-link {{ request()->is('admin/users*') ? 'active' : '' }}">
-                        <div class="nav-icon-box"><i class="fas fa-users"></i></div>
-                        <p>Users</p>
-                    </a>
-                </li>
+                @if($user && in_array((int)$user->user_role, [1, 2]))
+                    <li class="nav-item">
+                        <a href="{{ url('/admin/users') }}" class="nav-link {{ request()->is('admin/users*') ? 'active' : '' }}">
+                            <div class="nav-icon-box"><i class="fas fa-users"></i></div>
+                            <p>Users</p>
+                        </a>
+                    </li>
+                @endif
                 <li class="nav-item">
                     <a href="{{ url('/admin/equipment') }}" class="nav-link {{ request()->is('admin/equipment*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-desktop"></i></div>
@@ -377,10 +381,61 @@
                 </li>
 
                 <li class="custom-sidebar-divider" data-title="Reports & Analytics">Reports & Analytics</li>
-                <li class="nav-item">
+               <li class="nav-item">
                     <a href="{{ url('/admin/reports') }}" class="nav-link {{ request()->is('admin/reports*') ? 'active' : '' }}">
-                        <div class="nav-icon-box"><i class="fas fa-file-pdf"></i></div>
-                        <p>Reports</p>
+                        <div class="nav-icon-box" style="position: relative;">
+                        <i class="fas fa-file-pdf"></i></div>
+                        <p>Reports
+                             @php
+                                $user = auth()->user();
+                                $showReportDot = false;
+                            @endphp
+
+                            @if($user)
+                                @if(in_array((int)$user->user_role, [1, 2]))
+                                    @php
+                                        $showReportDot = \App\Models\Report::where('status', 1)->count();
+                                    @endphp
+                                @elseif(in_array((int)$user->user_role, [3, 4, 5]))
+                                    @php
+                                        // 1. Fetch live report records belonging to this standard user
+                                        $myReports = \App\Models\Report::where('user_id', $user->id)->get();
+                                        
+                                        // 2. Load historically saved statuses map from the session
+                                        $seenStatuses = session('seen_reports_statuses_' . $user->id, []);
+
+                                        // 3. Compare live database statuses against session records to detect new changes
+                                        foreach ($myReports as $report) {
+                                            if (!array_key_exists($report->id, $seenStatuses)) {
+                                                // Trigger alert if a report moves out of its initial submission state
+                                                if ($report->status != 1) {
+                                                    $showReportDot = true;
+                                                }
+                                            } elseif ($seenStatuses[$report->id] != $report->status) {
+                                                // Trigger alert if an admin modifies the status (e.g., Progressing -> Done)
+                                                $showReportDot = true;
+                                            }
+                                        }
+
+                                        // 4. If the user is currently looking at the reports index page,
+                                        // save all live statuses to the session to clear the red dot for the next page reload.
+                                        if (request()->is('admin/reports*')) {
+                                            foreach ($myReports as $report) {
+                                                $seenStatuses[$report->id] = $report->status;
+                                            }
+                                            session(['seen_reports_statuses_' . $user->id => $seenStatuses]);
+                                            $showReportDot = false; // Hide dot instantly on the active screen
+                                        }
+                                    @endphp
+                                @endif
+
+                                @if($showReportDot)
+                                    <span style="background:#ef4444; color:#fff; border-radius:999px; font-size:10px; padding:1px 7px; margin-left:6px; font-weight:700;">
+                                        {{ $showReportDot }}
+                                    </span>
+                                @endif
+                            @endif
+                        </p>
                     </a>
                 </li>
                 <li class="nav-item">
