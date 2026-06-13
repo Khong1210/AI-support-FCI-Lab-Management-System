@@ -349,11 +349,13 @@
                         <p>Semesters</p>
                     </a>
                 </li>
+                 @if(in_array((int)$user->user_role, [1, 2]))
                 <li class="nav-item">
                     <a href="{{ url('/admin/bookings') }}" class="nav-link {{ request()->is('admin/bookings') || request()->is('admin/bookings/*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-calendar-check"></i></div>
                         <p>Bookings</p>
                     </a>
+                @endif
                 </li>
                 <li class="nav-item">
                     <a href="{{ url('/admin/booking-requests') }}" class="nav-link {{ request()->is('admin/booking-requests*') ? 'active' : '' }}">

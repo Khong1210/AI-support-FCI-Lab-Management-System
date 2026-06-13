@@ -337,10 +337,12 @@
                                                     <span class="d-block small">{{ $mPurpose }}</span>
                                                 </div>
                                                 {{-- 💡 3. 如果後端有抓到對應的 schedule_id，就渲染 Edit 按鈕 --}}
-                                                @if(!empty($slot['schedule_id']))
-                                                    <div class="schedule-actions mt-2 text-right">
-                                                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
-                                                    </div>
+                                                @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                                    @if(!empty($slot['schedule_id']))
+                                                        <div class="schedule-actions mt-2 text-right">
+                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                        </div>
+                                                    @endif
                                                 @endif
                                             </div>
                                             
@@ -358,10 +360,12 @@
                                                     <span class="d-block small">Venue: {{ $labName }}</span>
                                                 </div>
                                                 {{-- 💡 4. Booking 的 Edit 按鈕 --}}
-                                                @if(!empty($slot['schedule_id']))
-                                                    <div class="schedule-actions mt-2 text-right">
-                                                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
-                                                    </div>
+                                                @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                                    @if(!empty($slot['schedule_id']))
+                                                        <div class="schedule-actions mt-2 text-right">
+                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                        </div>
+                                                    @endif
                                                 @endif
                                             </div>
                                             
@@ -375,14 +379,17 @@
                                                     <span class="d-block small">Venue: {{ $slot['data']->laboratory->lab_name ?? 'None' }}</span>
                                                 </div>
                                                 {{-- 💡 5. Enroll 課程的 Edit 按鈕 --}}
-                                                @if(!empty($slot['schedule_id']))
-                                                    <div class="schedule-actions mt-2 text-right">
-                                                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
-                                                    </div>
-                                                @elseif(isset($slot['data']->id))
-                                                    <div class="schedule-actions mt-2 text-right">
-                                                        <a href="{{ url('/admin/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
-                                                    </div>
+                                                @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+
+                                                    @if(!empty($slot['schedule_id']))
+                                                        <div class="schedule-actions mt-2 text-right">
+                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                        </div>
+                                                    @elseif(isset($slot['data']->id))
+                                                        <div class="schedule-actions mt-2 text-right">
+                                                            <a href="{{ url('/admin/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                        </div>
+                                                    @endif
                                                 @endif
                                             </div>
                                         @endif

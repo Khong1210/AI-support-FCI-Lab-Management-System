@@ -140,6 +140,33 @@
     </div>
 
     <div class="table-responsive">
+        @php
+            /**
+             * 1. Sort the records inside the Blade template using custom multi-level criteria.
+             * Priority order: 'pending' (1st) -> 'approved' (2nd) -> 'rejected' (3rd).
+             * Secondary order: Ties within the same status are sorted by record ID in ascending order (smaller ID first).
+             */
+            $sortedBookingRequests = $bookingRequests->sort(function ($a, $b) {
+                // Define explicit status priority weights where smaller integers float to the top
+                $statusPriority = [
+                    'pending'  => 1,
+                    'approved' => 2,
+                    'rejected' => 3
+                ];
+
+                $priorityA = $statusPriority[$a->status] ?? 99;
+                $priorityB = $statusPriority[$b->status] ?? 99;
+
+                // If status weights differ, sort chronologically by the determined custom status priority
+                if ($priorityA !== $priorityB) {
+                    return $priorityA <=> $priorityB;
+                }
+
+                // If status weights are identical, enforce strict sequential ordering fallback using primary keys
+                return $a->id <=> $b->id;
+            });
+        @endphp
+
         <table class="table table-hover mb-0">
             <thead class="table-light">
                 <tr>
@@ -156,7 +183,8 @@
                 </tr>
             </thead>
             <tbody>
-                @forelse($bookingRequests as $req)
+                {{-- 2. Iterate through the newly generated $sortedBookingRequests collection --}}
+                @forelse($sortedBookingRequests as $req)
                     <tr>
                         <td class="ps-4 text-muted">{{ $loop->iteration }}</td>
                         <td>
@@ -226,6 +254,7 @@
                     </tr>
                 @empty
                     <tr>
+                        {{-- 3. Dynamically adjust colspan structure based on role access boundaries --}}
                         <td colspan="{{ in_array((int)auth()->user()->user_role, [1, 2]) ? '8' : '7' }}" class="text-center py-5 text-muted">
                             <i class="fas fa-inbox fa-2x mb-2 d-block opacity-50"></i>
                             No booking requests found matching your filter options.

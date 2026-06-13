@@ -6,6 +6,7 @@ use App\Models\Laboratory;
 use App\Models\Report;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ReportController extends Controller
 {
@@ -17,16 +18,30 @@ class ReportController extends Controller
 
     public function index(Request $request)
     {
+        $user = Auth::user();
+        // 1. Initialize query builder with eager loaded relationship constraints
         $query = Report::with(['user', 'laboratory']);
 
+        /**
+         * 2. Enforce structural data isolation boundaries based on administrative clearance.
+         * Roles 1 (Admin), 3 (Lab Staff), and 4 (Committee) can audit global tickets.
+         * Role 5 (Lecturer) is strictly bounded to view only their personal reported tickets.
+         */
+        if (!in_array((int)$user->user_role, [1, 2, 3, 4])) {
+            $query->where('user_id', $user->id);
+        }
+
+        // 3. Apply conditional runtime data filters requested by the interface matching statuses
         if ($status = $request->input('status')) {
             $query->where('status', $status);
         }
 
+        // 4. Apply conditional runtime data filters targeting explicit laboratory selections
         if ($labId = $request->input('lab_id')) {
             $query->where('lab_id', $labId);
         }
 
+        // 5. Execute compilation query ordered chronologically by placement dates
         return view('admin.reports.index', [
             'reports' => $query->orderByDesc('reported_date')->get(),
             'statuses' => self::$statuses,

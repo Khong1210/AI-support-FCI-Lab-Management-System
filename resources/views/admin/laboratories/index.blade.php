@@ -38,7 +38,9 @@
                             <th>Equipment Count</th>
                             <th>Software Count</th>
                             <th>Status</th>
-                            <th>Actions</th>
+                            @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                <th>Actions</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -50,14 +52,18 @@
                                 <td>{{ $laboratory->equipments_count }}</td>
                                 <td>{{ $laboratory->softwares_count }}</td>
                                 <td>{{ $statuses[$laboratory->status] ?? 'Unknown' }}</td>
-                                <td>
-                                    <a href="{{ url('/admin/laboratories/' . $laboratory->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
-                                    <form action="{{ url('/admin/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block delete-form">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                    </form>
-                                </td>
+                                @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                    <td>
+                                        <a href="{{ url('/admin/laboratories/' . $laboratory->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                                    @if ((int)auth()->user()->user_role === 1)
+                                        <form action="{{ url('/admin/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block delete-form">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    @endif
+                                    </td> 
+                                @endif
                             </tr>
                         @empty
                             <tr>

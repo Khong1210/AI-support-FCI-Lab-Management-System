@@ -45,7 +45,9 @@
                             <th>Description</th>
                             <th>Reported Date</th>
                             <th>Status</th>
-                            <th>Actions</th>
+                            @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
+                                <th>Actions</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -58,33 +60,40 @@
                                 <td>{{ Str::limit($report->description, 80) }}</td>
                                 <td>{{ $report->reported_date }}</td>
                                 <td>{{ $statuses[$report->status] ?? 'Unknown' }}</td>
-                                <td>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        @if($report->status == 1)
-                                            <form action="{{ url('/admin/reports/' . $report->id . '/progress') }}" method="POST" class="d-inline-block">
+                                
+                                {{-- Display action controller operational items only to Roles 1, 3, and 4 --}}
+                                @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            @if($report->status == 1)
+                                                <form action="{{ url('/admin/reports/' . $report->id . '/progress') }}" method="POST" class="d-inline-block">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <button type="submit" class="btn btn-sm btn-warning">Progress</button>
+                                                </form>
+                                            @endif
+                                            
+                                            @if($report->status != 3)
+                                                <form action="{{ url('/admin/reports/' . $report->id . '/resolve') }}" method="POST" class="d-inline-block" style="margin-left: 2px;">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <button type="submit" class="btn btn-sm btn-success">Resolve</button>
+                                                </form>
+                                            @endif
+                                            
+                                            <form action="{{ url('/admin/reports/' . $report->id) }}" method="POST" class="d-inline-block delete-form" style="margin-left: 2px;">
                                                 @csrf
-                                                @method('PUT')
-                                                <button type="submit" class="btn btn-sm btn-warning">Progress</button>
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this report?')">Delete</button>
                                             </form>
-                                        @endif
-                                        @if($report->status != 3)
-                                            <form action="{{ url('/admin/reports/' . $report->id . '/resolve') }}" method="POST" class="d-inline-block" style="margin-left: 2px;">
-                                                @csrf
-                                                @method('PUT')
-                                                <button type="submit" class="btn btn-sm btn-success">Resolve</button>
-                                            </form>
-                                        @endif
-                                        <form action="{{ url('/admin/reports/' . $report->id) }}" method="POST" class="d-inline-block delete-form" style="margin-left: 2px;">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                        </form>
-                                    </div>
-                                </td>
+                                        </div>
+                                    </td>
+                                @endif
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center">No problem reports found.</td>
+                                {{-- Dynamically adjust layout structures if the data array payload falls short --}}
+                                <td colspan="{{ in_array((int)auth()->user()->user_role, [1, 3, 4]) ? '8' : '7' }}" class="text-center">No problem reports found.</td>
                             </tr>
                         @endforelse
                     </tbody>

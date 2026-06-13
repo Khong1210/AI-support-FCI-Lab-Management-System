@@ -28,7 +28,9 @@
                             <th>Name</th>
                             <th>Start Date</th>
                             <th>End Date</th>
-                            <th>Actions</th>
+                            @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                <th>Actions</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -38,14 +40,16 @@
                                 <td>{{ $semester->name }}</td>
                                 <td>{{ $semester->start_date }}</td>
                                 <td>{{ $semester->end_date }}</td>
-                                <td>
-                                    <a href="{{ url('/admin/semesters/' . $semester->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
-                                    <form action="{{ url('/admin/semesters/' . $semester->id) }}" method="POST" class="d-inline-block delete-form">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                    </form>
-                                </td>
+                                @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                    <td>
+                                        <a href="{{ url('/admin/semesters/' . $semester->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                                        <form action="{{ url('/admin/semesters/' . $semester->id) }}" method="POST" class="d-inline-block delete-form">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    </td>
+                                @endif
                             </tr>
                         @empty
                             <tr>

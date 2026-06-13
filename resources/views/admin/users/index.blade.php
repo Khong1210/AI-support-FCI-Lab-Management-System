@@ -58,32 +58,38 @@
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody>
-                    @forelse ($users as $user)
-                        <tr>
-                            <td>{{ $user->id }}</td>
-                            <td>{{ $user->username }}</td>
-                            <td>{{ $user->email }}</td>
-                            <td>
-                                <span class="badge badge-{{ $roleBadges[$user->user_role] ?? 'light' }}">
-                                    {{ $roles[$user->user_role] ?? 'Unknown' }}
-                                </span>
-                            </td>
-                            <td>
-                                <a href="{{ url('/admin/users/' . $user->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+               <tbody>
+                @forelse ($users as $user)
+                    <tr>
+                        <td>{{ $user->id }}</td>
+                        <td>{{ $user->username }}</td>
+                        <td>{{ $user->email }}</td>
+                        <td>
+                            <span class="badge badge-{{ $roleBadges[$user->user_role] ?? 'light' }}">
+                                {{ $roles[$user->user_role] ?? 'Unknown' }}
+                            </span>
+                        </td>
+                        <td>
+                            {{-- Edit button is available to authorized administrative roles (Admin and Manager) --}}
+                            <a href="{{ url('/admin/users/' . $user->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                            
+                            {{-- Destructive actions are strictly restricted to Supreme Administrators (Role 1 Only) --}}
+                            @if ((int)auth()->user()->user_role === 1)
                                 <form action="{{ url('/admin/users/' . $user->id) }}" method="POST" class="d-inline-block delete-form">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to permanently delete this user account?')">Delete</button>
                                 </form>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="text-center">No users found.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        {{-- Dynamically adjust colspan layout if the action window drops the delete form interface elements --}}
+                        <td colspan="5" class="text-center">No users found.</td>
+                    </tr>
+                @endforelse
+            </tbody>
             </table>
         </div>
     </div>
