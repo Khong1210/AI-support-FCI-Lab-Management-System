@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Laboratory;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class BookingController extends Controller
 {
@@ -19,6 +20,11 @@ class BookingController extends Controller
     public function index(Request $request)
     {
         $query = Booking::with(['user', 'laboratory']);
+
+        // Scenario A: Lecturer Personal Data Isolation
+        if (auth()->check() && auth()->user()->role_id == 5) {
+            $query->where('user_id', auth()->id());
+        }
 
         if ($status = $request->input('status')) {
             $query->where('status', $status);
@@ -50,8 +56,8 @@ class BookingController extends Controller
             'lab_id' => 'required|exists:laboratories,id',
             'purpose' => 'required|string|max:255',
             'date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
+            'start_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/'],
+            'end_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/', 'after:start_time'],
         ]);
 
         Booking::create([

@@ -5,106 +5,74 @@
 @section('breadcrumb', 'Laboratories')
 
 @section('content')
-<div class="row mb-3">
-    <div class="col-md-6">
-        <div class="card card-info card-outline card-tabs">
-            <div class="card-header p-0 pt-1 border-bottom-0">
-                <ul class="nav nav-tabs" id="labTabs" role="tablist">
-                    <li class="nav-item"><a class="nav-link active" id="all-labs-tab" data-toggle="pill" href="#all-labs" role="tab">All Laboratories</a></li>
-                    <li class="nav-item"><a class="nav-link" id="filter-tab" data-toggle="pill" href="#filter" role="tab">Filter</a></li>
-                </ul>
-            </div>
-            <div class="card-body">
-                <div class="tab-content" id="labTabContent">
-                    <div class="tab-pane fade show active" id="all-labs" role="tabpanel" aria-labelledby="all-labs-tab">
-                        <p class="text-muted mb-2">Total Laboratories: <strong>{{ count($laboratories) }}</strong></p>
-                    </div>
-                    <div class="tab-pane fade" id="filter" role="tabpanel" aria-labelledby="filter-tab">
-                        <form method="GET" action="{{ url('/admin/laboratories') }}">
-                            <div class="form-group">
-                                <label for="status">Status</label>
-                                <select name="status" id="status" class="custom-select">
-                                    <option value="">All statuses</option>
-                                    @foreach ($statuses as $key => $label)
-                                        <option value="{{ $key }}" {{ request('status') == $key ? 'selected' : '' }}>{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Apply Filter</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card card-primary card-outline">
-    <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-list mr-2"></i>Laboratory List</h3>
-        <div class="card-tools">
-            <a href="{{ url('/admin/laboratories/add') }}" class="btn btn-sm btn-success">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title">Laboratory List</h3>
+            <a href="{{ url('/admin/laboratories/add') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Add Laboratory
             </a>
         </div>
-    </div>
-    <div class="card-body table-responsive p-0">
-        @if ($laboratories->count())
-            <table class="table table-hover table-striped">
-                <thead>
-                    <tr>
-                        <th style="width: 10%">ID</th>
-                        <th>Name</th>
-                        <th>Status</th>
-                        <th>Capacity</th>                        <th>Equipment</th>
-                        <th>Software</th>                        <th style="width: 25%">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($laboratories as $laboratory)
+        <div class="card-body">
+            <form method="GET" class="form-inline mb-3">
+                <div class="form-group mr-2">
+                    <input type="search" name="search" class="form-control" placeholder="Search laboratory" value="{{ request('search') }}">
+                </div>
+                <div class="form-group mr-2">
+                    <select name="status" class="form-control">
+                        <option value="">All Statuses</option>
+                        @foreach($statuses as $key => $value)
+                            <option value="{{ $key }}" {{ request('status') == $key ? 'selected' : '' }}>{{ $value }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <button class="btn btn-secondary">Filter</button>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered">
+                    <thead>
                         <tr>
-                            <td><span class="badge badge-secondary">{{ $laboratory->id }}</span></td>
-                            <td>{{ $laboratory->lab_name }}</td>
-                            <td>
-                                @php
-                                    $statusClasses = [
-                                        1 => 'success',
-                                        2 => 'warning',
-                                        3 => 'danger',
-                                    ];
-                                @endphp
-                                <span class="badge badge-{{ $statusClasses[$laboratory->status] ?? 'secondary' }}">{{ $statuses[$laboratory->status] ?? 'Unknown' }}</span>
-                            </td>
-                            <td>{{ $laboratory->capacity }} seats</td>
-                            <td><span class="badge badge-info">{{ $laboratory->equipments_count }}</span></td>
-                            <td><span class="badge badge-warning">{{ $laboratory->softwares_count }}</span></td>
-                            <td>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <a href="{{ url('/admin/laboratories/' . $laboratory->id . '/edit') }}" class="btn btn-outline-primary">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </a>
-                                    <form action="{{ url('/admin/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block" onsubmit="return confirm('Delete this laboratory?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Capacity</th>
+                            <th>Equipment Count</th>
+                            <th>Software Count</th>
+                            <th>Status</th>
+                            @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                <th>Actions</th>
+                            @endif
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @else
-            <div class="alert alert-info m-3">
-                <i class="fas fa-info-circle mr-2"></i>
-                <strong>No laboratories found.</strong> No records are available yet.
+                    </thead>
+                    <tbody>
+                        @forelse($laboratories as $laboratory)
+                            <tr>
+                                <td>{{ $laboratory->id }}</td>
+                                <td>{{ $laboratory->lab_name }}</td>
+                                <td>{{ $laboratory->capacity }} seats</td>
+                                <td>{{ $laboratory->equipments_count }}</td>
+                                <td>{{ $laboratory->softwares_count }}</td>
+                                <td>{{ $statuses[$laboratory->status] ?? 'Unknown' }}</td>
+                                @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
+                                    <td>
+                                        <a href="{{ url('/admin/laboratories/' . $laboratory->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                                    @if ((int)auth()->user()->user_role === 1)
+                                        <form action="{{ url('/admin/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block delete-form">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    @endif
+                                    </td> 
+                                @endif
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center">No laboratories found.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
-        @endif
+        </div>
     </div>
-    <div class="card-footer text-muted">
-        <small>Total Laboratories: {{ $laboratories->count() }}</small>
-    </div>
-</div>
 @endsection

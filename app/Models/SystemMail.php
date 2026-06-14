@@ -4,13 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Course extends Model
+class SystemMail extends Model
 {
     protected $fillable = [
-        'user_id', // FK for the lecturer in charge
-        'course_name',
-        'hours',
-        'description',
+        'user_id',
+        'subject',
+        'body',
+        'is_read',
+        'type',
     ];
 
     public function user()

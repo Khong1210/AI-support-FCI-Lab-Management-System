@@ -14,11 +14,15 @@
         @method('PUT')
         <div class="card-body">
             <div class="row">
-                <div class="col-md-6 form-group">
+                <div class="col-md-4 form-group">
                     <label>Course Name</label>
                     <input type="text" name="course_name" class="form-control" value="{{ $course->course_name }}" required>
                 </div>
-                <div class="col-md-6 form-group">
+                <div class="col-md-4 form-group">
+                    <label>Hours</label>
+                    <input type="number" name="hours" class="form-control" value="{{ $course->hours }}" required>
+                </div>
+                <div class="col-md-4 form-group">
                     <label>Lecturer in Charge</label>
                     <select name="user_id" class="form-control">
                         <option value="">None / Unassigned</option>

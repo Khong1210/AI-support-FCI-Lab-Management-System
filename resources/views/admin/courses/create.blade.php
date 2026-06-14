@@ -15,12 +15,17 @@
                 @csrf
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-4 form-group">
                             <label>Course Name</label>
                             <input type="text" name="course_name" class="form-control @error('course_name') is-invalid @enderror" value="{{ old('course_name') }}" placeholder="Enter course name" required>
                             @error('course_name')<span class="invalid-feedback">{{ $message }}</span>@enderror
                         </div>
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-4 form-group">
+                            <label>Hours</label>
+                            <input type="number" name="hours" class="form-control @error('hours') is-invalid @enderror" value="{{ old('hours', 0) }}" required>
+                            @error('hours')<span class="invalid-feedback">{{ $message }}</span>@enderror
+                        </div>
+                        <div class="col-md-4 form-group">
                             <label>Lecturer in Charge</label>
                             <select name="user_id" class="custom-select @error('user_id') is-invalid @enderror">
                                 <option value="">None / Unassigned</option>

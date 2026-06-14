@@ -804,3 +804,41 @@ label {
         padding-right: 1rem;
     }
 }
+
+/* ============================================
+   SIDEBAR MINI (DESKTOP COLLAPSE)
+   ============================================ */
+@media (min-width: 769px) {
+    .sidebar-mini.sidebar-collapse .main-sidebar,
+    .sidebar-mini.sidebar-collapse .main-sidebar:hover {
+        width: 70px;
+    }
+    .sidebar-mini.sidebar-collapse .content-wrapper,
+    .sidebar-mini.sidebar-collapse .main-footer {
+        margin-left: 70px;
+        transition: margin-left 0.3s ease;
+    }
+    .sidebar-mini.sidebar-collapse .main-sidebar .nav-link p,
+    .sidebar-mini.sidebar-collapse .main-sidebar .brand-text,
+    .sidebar-mini.sidebar-collapse .main-sidebar .nav-header {
+        display: none !important;
+    }
+    .sidebar-mini.sidebar-collapse .main-sidebar .brand-link {
+        padding: 1rem 0;
+        text-align: center;
+    }
+    .sidebar-mini.sidebar-collapse .main-sidebar .nav-icon {
+        margin-right: 0;
+        width: 100%;
+        text-align: center;
+        font-size: 1.1rem;
+    }
+    .sidebar-mini.sidebar-collapse .main-sidebar .nav-link {
+        text-align: center;
+        padding-left: 0;
+        padding-right: 0;
+    }
+    .sidebar-mini.sidebar-collapse .main-sidebar .nav-link:hover {
+        padding-left: 0;
+    }
+}

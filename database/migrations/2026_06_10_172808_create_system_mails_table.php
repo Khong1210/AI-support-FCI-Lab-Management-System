@@ -11,12 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('courses', function (Blueprint $table) {
+        Schema::create('system_mails', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null');
-            $table->string('course_name');
-            $table->integer('hours')->default(0);
-            $table->text('description')->nullable();
+            $table->foreignId('user_id')->default(1)->constrained('users')->onDelete('cascade');
+            $table->string('subject');
+            $table->text('body');
+            $table->boolean('is_read')->default(0);
+            $table->string('type')->default('general');
             $table->timestamps();
         });
     }
@@ -26,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('courses');
+        Schema::dropIfExists('system_mails');
     }
 };
