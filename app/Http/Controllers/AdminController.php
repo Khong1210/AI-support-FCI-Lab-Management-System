@@ -88,7 +88,7 @@ class AdminController extends Controller
             'user_role' => $request->input('user_role'),
         ]);
 
-        return redirect('/admin/users')->with('status', 'User created successfully.');
+        return redirect('/management/users')->with('status', 'User created successfully.');
     }
 
     public function editUser(User $user)
@@ -120,13 +120,13 @@ class AdminController extends Controller
 
         $user->update($data);
 
-        return redirect('/admin/users')->with('status', 'User updated successfully.');
+        return redirect('/management/users')->with('status', 'User updated successfully.');
     }
 
     public function destroyUser(User $user)
     {
         $user->delete();
 
-        return redirect('/admin/users')->with('status', 'User deleted successfully.');
+        return redirect('/management/users')->with('status', 'User deleted successfully.');
     }
 }

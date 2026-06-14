@@ -31,7 +31,7 @@ class CourseController extends Controller
 
         Course::create($request->all());
 
-        return redirect('/admin/courses')->with('status', 'Course created successfully.');
+        return redirect('/management/courses')->with('status', 'Course created successfully.');
     }
 
     public function edit(Course $course)
@@ -51,13 +51,13 @@ class CourseController extends Controller
 
         $course->update($request->all());
 
-        return redirect('/admin/courses')->with('status', 'Course updated successfully.');
+        return redirect('/management/courses')->with('status', 'Course updated successfully.');
     }
 
     public function destroy(Course $course)
     {
         $course->delete();
 
-        return redirect('/admin/courses')->with('status', 'Course deleted successfully.');
+        return redirect('/management/courses')->with('status', 'Course deleted successfully.');
     }
 }

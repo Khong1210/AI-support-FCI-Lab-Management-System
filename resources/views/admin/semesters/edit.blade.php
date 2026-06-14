@@ -9,7 +9,7 @@
     <div class="card-header">
         <h3 class="card-title"><i class="fas fa-edit mr-2"></i>Edit Semester</h3>
     </div>
-    <form action="{{ url('/admin/semesters/' . $semester->id) }}" method="POST">
+    <form action="{{ url('/management/semesters/' . $semester->id) }}" method="POST">
         @csrf
         @method('PUT')
         <div class="card-body">
@@ -39,7 +39,7 @@
         </div>
         <div class="card-footer">
             <button type="submit" class="btn btn-primary">Update Semester</button>
-            <a href="{{ url('/admin/semesters') }}" class="btn btn-secondary float-right">Cancel</a>
+            <a href="{{ url('/management/semesters') }}" class="btn btn-secondary float-right">Cancel</a>
         </div>
     </form>
 </div>

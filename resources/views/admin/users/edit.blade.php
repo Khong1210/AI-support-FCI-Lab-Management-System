@@ -11,7 +11,7 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-user-edit mr-2"></i>Edit User: {{ $user->username }}</h3>
             </div>
-            <form action="{{ url('/admin/users/' . $user->id) }}" method="POST">
+            <form action="{{ url('/management/users/' . $user->id) }}" method="POST">
                 @csrf
                 @method('PUT')
                 <div class="card-body">
@@ -88,7 +88,7 @@
                     <button type="submit" class="btn btn-info">
                         <i class="fas fa-save mr-1"></i> Save Changes
                     </button>
-                    <a href="{{ url('/admin/users') }}" class="btn btn-secondary">
+                    <a href="{{ url('/management/users') }}" class="btn btn-secondary">
                         <i class="fas fa-times mr-1"></i> Cancel
                     </a>
                 </div>

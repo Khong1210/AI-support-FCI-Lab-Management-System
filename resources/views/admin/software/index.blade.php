@@ -8,7 +8,7 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title">Software List</h3>
-            <a href="{{ url('/admin/software/add') }}" class="btn btn-primary btn-sm">
+            <a href="{{ url('/software/add') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Add Software
             </a>
         </div>
@@ -54,9 +54,9 @@
                                 <td>{{ $statuses[$item->status] ?? 'Unknown' }}</td>
                                   @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2 || (int)auth()->user()->user_role === 3 || (int)auth()->user()->user_role === 4)
                                     <td>
-                                        <a href="{{ url('/admin/software/' . $item->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                                        <a href="{{ url('/software/' . $item->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
                                          @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2 || (int)auth()->user()->user_role === 4)
-                                            <form action="{{ url('/admin/software/' . $item->id) }}" method="POST" class="d-inline-block delete-form">
+                                            <form action="{{ url('/software/' . $item->id) }}" method="POST" class="d-inline-block delete-form">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>

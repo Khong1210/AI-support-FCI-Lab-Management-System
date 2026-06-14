@@ -9,12 +9,12 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h3 class="card-title">User List</h3>
-        <a href="{{ url('/admin/users/add') }}" class="btn btn-primary btn-sm">
+        <a href="{{ url('/management/users/add') }}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus mr-1"></i> Add User
         </a>
     </div>
     <div class="card-body">
-        <form method="GET" action="{{ url('/admin/users') }}" class="mb-3">
+        <form method="GET" action="{{ url('/management/users') }}" class="mb-3">
             <div class="row align-items-end">
                 <div class="col-md-4">
                     <label class="small text-muted">Search</label>
@@ -35,7 +35,7 @@
 
                 <div class="col-md-3 d-flex align-items-end">
                     <button type="submit" class="btn btn-secondary mr-2">Filter</button>
-                    <a href="{{ url('/admin/users') }}" class="btn btn-link">Clear</a>
+                    <a href="{{ url('/management/users') }}" class="btn btn-link">Clear</a>
                 </div>
             </div>
         </form>
@@ -71,11 +71,11 @@
                         </td>
                         <td>
                             {{-- Edit button is available to authorized administrative roles (Admin and Manager) --}}
-                            <a href="{{ url('/admin/users/' . $user->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                            <a href="{{ url('/management/users/' . $user->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
                             
                             {{-- Destructive actions are strictly restricted to Supreme Administrators (Role 1 Only) --}}
                             @if ((int)auth()->user()->user_role === 1)
-                                <form action="{{ url('/admin/users/' . $user->id) }}" method="POST" class="d-inline-block delete-form">
+                                <form action="{{ url('/management/users/' . $user->id) }}" method="POST" class="d-inline-block delete-form">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to permanently delete this user account?')">Delete</button>

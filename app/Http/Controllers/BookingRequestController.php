@@ -60,7 +60,7 @@ class BookingRequestController extends Controller
             'status'     => 'pending',
         ]);
 
-        return redirect('/admin/booking-requests')
+        return redirect('/booking-requests')
             ->with('success', 'Your booking request has been submitted successfully! The lab administrator will review it shortly.');
     }
 
@@ -152,7 +152,7 @@ class BookingRequestController extends Controller
 }
 /**
      * Display a filtered listing of booking requests scoped by authorization levels.
-     * Accessible at GET /admin/booking-requests
+     * Accessible at GET /booking-requests
      */
     public function index(Request $request)
     {
@@ -201,14 +201,14 @@ class BookingRequestController extends Controller
      *  3. Create a record in `schedules` (schedule_type='booking', linked to above booking).
      *  4. Mark the booking request as 'approved'.
      *
-     * PUT /admin/booking-requests/{id}/approve
+     * PUT /booking-requests/{id}/approve
      */
     public function approve(int $id)
     {
         $bookingRequest = BookingRequest::findOrFail($id);
 
         if ($bookingRequest->status !== 'pending') {
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('error', 'This request has already been processed.');
         }
 
@@ -271,14 +271,14 @@ class BookingRequestController extends Controller
 
             DB::commit();
 
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('status', "Booking request #{$bookingRequest->id} has been approved and scheduled successfully.");
 
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('❌ [BookingRequest] Failed to approve request #' . $id . ': ' . $e->getMessage());
 
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('error', 'Failed to approve request: ' . $e->getMessage());
         }
     }
@@ -294,7 +294,7 @@ class BookingRequestController extends Controller
      *  1. Mark the booking request as 'rejected'.
      *  2. Generate a record in `system_mails`.
      *
-     * PUT /admin/booking-requests/{id}/reject
+     * PUT /booking-requests/{id}/reject
      */
     public function reject(Request $request, int $id)
     {
@@ -304,7 +304,7 @@ class BookingRequestController extends Controller
 
             // 2. Normalize status checks using lowercase conversions to prevent execution mismatches
             if (strtolower($bookingRequest->status) !== 'pending') {
-                return redirect('/admin/booking-requests')
+                return redirect('/booking-requests')
                     ->with('error', 'This request has already been processed (Current status: ' . $bookingRequest->status . ').');
             }
 
@@ -346,7 +346,7 @@ class BookingRequestController extends Controller
                 'type'    => 'booking_status',
             ]);
 
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('status', "Booking request #{$bookingRequest->id} has been rejected successfully.");
 
         } catch (\Exception $e) {

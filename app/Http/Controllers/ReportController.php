@@ -76,27 +76,27 @@ class ReportController extends Controller
             'status' => 1,
         ]);
 
-        return redirect('/admin/reports')->with('status', 'Problem report submitted successfully.');
+        return redirect('/reports')->with('status', 'Problem report submitted successfully.');
     }
 
     public function markInProgress(Report $report)
     {
         $report->update(['status' => 2]);
 
-        return redirect('/admin/reports')->with('status', 'Report marked as in progress.');
+        return redirect('/reports')->with('status', 'Report marked as in progress.');
     }
 
     public function resolve(Report $report)
     {
         $report->update(['status' => 3]);
 
-        return redirect('/admin/reports')->with('status', 'Report marked as resolved.');
+        return redirect('/reports')->with('status', 'Report marked as resolved.');
     }
 
     public function destroy(Report $report)
     {
         $report->delete();
 
-        return redirect('/admin/reports')->with('status', 'Report deleted.');
+        return redirect('/reports')->with('status', 'Report deleted.');
     }
 }

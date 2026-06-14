@@ -8,7 +8,7 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title">Laboratory List</h3>
-            <a href="{{ url('/admin/laboratories/add') }}" class="btn btn-primary btn-sm">
+            <a href="{{ url('/laboratories/add') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Add Laboratory
             </a>
         </div>
@@ -54,9 +54,9 @@
                                 <td>{{ $statuses[$laboratory->status] ?? 'Unknown' }}</td>
                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                     <td>
-                                        <a href="{{ url('/admin/laboratories/' . $laboratory->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                                        <a href="{{ url('/laboratories/' . $laboratory->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
                                     @if ((int)auth()->user()->user_role === 1)
-                                        <form action="{{ url('/admin/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block delete-form">
+                                        <form action="{{ url('/laboratories/' . $laboratory->id) }}" method="POST" class="d-inline-block delete-form">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-danger">Delete</button>

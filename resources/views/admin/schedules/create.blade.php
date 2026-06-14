@@ -29,7 +29,7 @@
                 </button>
             </div>
 
-            <form action="{{ url('/admin/schedules') }}" method="POST" id="add-schedule-form">
+            <form action="{{ url('/schedules') }}" method="POST" id="add-schedule-form">
                 @csrf
                 
                 <input type="hidden" name="return_lab_id" value="{{ request('lab_id', old('return_lab_id')) }}">
@@ -206,7 +206,7 @@
                             'semester_id' => request('semester_id', old('return_semester_id'))
                         ]);
                     @endphp
-                    <a href="{{ url('/admin/schedules?' . http_build_query($cancelParams)) }}" class="btn btn-secondary float-right">
+                    <a href="{{ url('/schedules?' . http_build_query($cancelParams)) }}" class="btn btn-secondary float-right">
                         Cancel
                     </a>
                 </div>
@@ -299,7 +299,7 @@ function initializeTimeOptions() {
             exclude_id: excludeId
         });
 
-        return fetch(`/admin/schedules/check-conflicts?${params.toString()}`, {
+        return fetch(`/schedules/check-conflicts?${params.toString()}`, {
             headers: { 'Accept': 'application/json' }
         })
         .then(resp => resp.ok ? resp.json() : [])
@@ -314,7 +314,7 @@ function initializeTimeOptions() {
     if (!date || !labId) return;
 
     // 直接请求计算好的可用列表
-    fetch(`/admin/schedules/get-available-time-slots?date=${date}&laboratory_id=${labId}`)
+    fetch(`/schedules/get-available-time-slots?date=${date}&laboratory_id=${labId}`)
         .then(res => res.json())
         .then(availableSlots => {
             startTimeSelect.innerHTML = '<option value="">Select Time</option>';
@@ -507,7 +507,7 @@ function displayFieldErrors(errors) {
         })
         .then(data => {
             // 🚀 【核心修复点】保存成功后不再刷新当前页，直接跳转回 schedules 列表页
-            window.location.href = '/admin/schedules';
+            window.location.href = '/schedules';
         })
         .catch(err => {
             if (err.status === 422 && err.errors) {

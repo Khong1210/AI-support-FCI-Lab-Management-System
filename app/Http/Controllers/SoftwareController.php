@@ -54,7 +54,7 @@ class SoftwareController extends Controller
 
         Software::create($request->only(['lab_id', 'software_name', 'version', 'expiry_date', 'status']));
 
-        return redirect('/admin/software')->with('status', 'Software created successfully.');
+        return redirect('/software')->with('status', 'Software created successfully.');
     }
 
     public function edit(Software $software)
@@ -78,13 +78,13 @@ class SoftwareController extends Controller
 
         $software->update($request->only(['lab_id', 'software_name', 'version', 'expiry_date', 'status']));
 
-        return redirect('/admin/software')->with('status', 'Software updated successfully.');
+        return redirect('/software')->with('status', 'Software updated successfully.');
     }
 
     public function destroy(Software $software)
     {
         $software->delete();
 
-        return redirect('/admin/software')->with('status', 'Software deleted successfully.');
+        return redirect('/software')->with('status', 'Software deleted successfully.');
     }
 }

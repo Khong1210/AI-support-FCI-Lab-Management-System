@@ -642,7 +642,7 @@ class ScheduleController extends Controller
             'semester_id' => $request->input('return_semester_id') ?? $request->input('semester_id') ?? null,
         ]);
 
-        return redirect()->to('/admin/schedules' . (count($params) ? ('?' . http_build_query($params)) : ''))
+        return redirect()->to('/schedules' . (count($params) ? ('?' . http_build_query($params)) : ''))
                          ->with('success', 'Schedule saved successfully.');
         
     } catch (\Exception $ex) {
@@ -897,7 +897,7 @@ public function getAvailableTimeSlots(Request $request)
     if ($request->filled('return_semester_id')) { $redirectParams['semester_id'] = $request->input('return_semester_id'); }
     
     $queryString = count($redirectParams) ? '?' . http_build_query($redirectParams) : '';
-    $finalRedirectUrl = url('/admin/schedules' . $queryString);
+    $finalRedirectUrl = url('/schedules' . $queryString);
 
     // Return responsive outputs
     if ($request->expectsJson()) {
@@ -917,7 +917,7 @@ public function getAvailableTimeSlots(Request $request)
         $schedule->delete();
 
         $queryParams = $request->query();
-        return redirect()->to(url('/admin/schedules?' . http_build_query($queryParams)))
+        return redirect()->to(url('/schedules?' . http_build_query($queryParams)))
                          ->with('status', 'Schedule deleted successfully.');
     }
 }

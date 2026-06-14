@@ -10,7 +10,7 @@
         <h3 class="card-title"><i class="fas fa-edit mr-2"></i>Edit Schedule</h3>
     </div>
     
-    <form action="{{ url('/admin/schedules/' . $schedule->id) }}" method="POST" id="edit-schedule-form">
+    <form action="{{ url('/schedules/' . $schedule->id) }}" method="POST" id="edit-schedule-form">
     @csrf
     @method('PUT')
     
@@ -147,7 +147,7 @@
                 'semester_id' => request('semester_id', $schedule->semester_id)
             ];
         @endphp
-        <a href="{{ url('/admin/schedules?' . http_build_query($cancelParams)) }}" class="btn btn-secondary ml-2">Cancel</a>
+        <a href="{{ url('/schedules?' . http_build_query($cancelParams)) }}" class="btn btn-secondary ml-2">Cancel</a>
         
         <button type="button" class="btn btn-outline-danger ml-auto" onclick="confirmDeleteSchedule()">
             <i class="fas fa-trash-alt mr-1"></i> Delete Schedule
@@ -156,7 +156,7 @@
 </form>
 </div>
 
-<form id="delete-schedule-form" action="{{ url('/admin/schedules/' . $schedule->id) }}" method="POST" style="display: none;">
+<form id="delete-schedule-form" action="{{ url('/schedules/' . $schedule->id) }}" method="POST" style="display: none;">
     @csrf
     @method('DELETE')
     <input type="hidden" name="return_lab_id" value="{{ request('lab_id', $schedule->lab_id) }}">
@@ -228,7 +228,7 @@
             exclude_id: excludeId
         });
 
-        return fetch(`/admin/schedules/check-conflicts?${params.toString()}`, {
+        return fetch(`/schedules/check-conflicts?${params.toString()}`, {
             headers: { 'Accept': 'application/json' }
         })
         .then(resp => resp.ok ? resp.json() : [])
@@ -253,7 +253,7 @@ function updateStartTimeOptions() {
 
     // 这里调用你刚才 Controller 写的那个能剔除占用时段的方法
     // 记得在 URL 里加上 exclude_id，这样编辑时就不会把自己算作冲突
-    fetch(`/admin/schedules/get-available-time-slots?date=${dateValue}&laboratory_id=${labId}&exclude_schedule_id=${excludeId}`)
+    fetch(`/schedules/get-available-time-slots?date=${dateValue}&laboratory_id=${labId}&exclude_schedule_id=${excludeId}`)
         .then(res => res.json())
         .then(availableSlots => {
             startSelect.innerHTML = '<option value="">Select Time</option>';
@@ -353,7 +353,7 @@ function updateStartTimeOptions() {
                 if (returnSemesterId) returnParams.append('semester_id', returnSemesterId);
 
                 setTimeout(() => {
-                    window.location.href = `/admin/schedules${returnParams.toString() ? '?' + returnParams.toString() : ''}`;
+                    window.location.href = `/schedules${returnParams.toString() ? '?' + returnParams.toString() : ''}`;
                 }, 1500);
             }
         })

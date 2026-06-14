@@ -11,7 +11,7 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-calendar-alt mr-2"></i>Add Semester</h3>
             </div>
-            <form action="{{ url('/admin/semesters') }}" method="POST">
+            <form action="{{ url('/management/semesters') }}" method="POST">
                 @csrf
                 <div class="card-body">
                     <div class="form-group">
@@ -42,7 +42,7 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save mr-1"></i> Save Semester
                     </button>
-                    <a href="{{ url('/admin/semesters') }}" class="btn btn-secondary float-right">
+                    <a href="{{ url('/management/semesters') }}" class="btn btn-secondary float-right">
                         <i class="fas fa-times mr-1"></i> Cancel
                     </a>
                 </div>

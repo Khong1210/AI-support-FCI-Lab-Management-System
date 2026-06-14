@@ -70,27 +70,27 @@ class BookingController extends Controller
             'status' => 1,
         ]);
 
-        return redirect('/admin/bookings')->with('status', 'Booking request created successfully.');
+        return redirect('/bookings')->with('status', 'Booking request created successfully.');
     }
 
     public function accept(Booking $booking)
     {
         $booking->update(['status' => 2]);
 
-        return redirect('/admin/bookings')->with('status', 'Booking request accepted.');
+        return redirect('/bookings')->with('status', 'Booking request accepted.');
     }
 
     public function reject(Booking $booking)
     {
         $booking->update(['status' => 3]);
 
-        return redirect('/admin/bookings')->with('status', 'Booking request rejected.');
+        return redirect('/bookings')->with('status', 'Booking request rejected.');
     }
 
     public function destroy(Booking $booking)
     {
         $booking->delete();
 
-        return redirect('/admin/bookings')->with('status', 'Booking request deleted.');
+        return redirect('/bookings')->with('status', 'Booking request deleted.');
     }
 }

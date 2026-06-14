@@ -8,7 +8,7 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title">Course List</h3>
-            <a href="{{ url('/admin/courses/add') }}" class="btn btn-primary btn-sm">
+            <a href="{{ url('/management/courses/add') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Add Course
             </a>
         </div>
@@ -61,8 +61,8 @@
 
                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                     <td>
-                                        <a href="{{ url('/admin/courses/' . $course->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
-                                        <form action="{{ url('/admin/courses/' . $course->id) }}" method="POST" class="d-inline-block delete-form">
+                                        <a href="{{ url('/management/courses/' . $course->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                                        <form action="{{ url('/management/courses/' . $course->id) }}" method="POST" class="d-inline-block delete-form">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-danger">Delete</button>

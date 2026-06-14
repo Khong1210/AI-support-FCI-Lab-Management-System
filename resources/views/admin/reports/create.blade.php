@@ -11,7 +11,7 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-exclamation-triangle mr-2"></i>New Problem Report</h3>
             </div>
-            <form action="{{ url('/admin/reports') }}" method="POST">
+            <form action="{{ url('/reports') }}" method="POST">
                 @csrf
                 <div class="card-body">
                     <div class="row">
@@ -56,7 +56,7 @@
                 </div>
                 <div class="card-footer">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1"></i> Submit Report</button>
-                    <a href="{{ url('/admin/reports') }}" class="btn btn-secondary float-right"><i class="fas fa-times mr-1"></i> Cancel</a>
+                    <a href="{{ url('/reports') }}" class="btn btn-secondary float-right"><i class="fas fa-times mr-1"></i> Cancel</a>
                 </div>
             </form>
         </div>

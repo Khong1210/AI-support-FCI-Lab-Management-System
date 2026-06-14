@@ -130,7 +130,7 @@
             </div>
 
             {{-- 统一指引向后台的 store 方法 --}}
-            <form action="{{ url('/admin/booking-requests') }}" method="POST" class="p-4" id="bookingForm">
+            <form action="{{ url('/booking-requests') }}" method="POST" class="p-4" id="bookingForm">
                 @csrf
 
                 {{-- ── Section: Booking Details ── --}}
@@ -219,7 +219,7 @@
                     <button type="submit" class="btn btn-submit shadow-sm" id="submitBtn">
                         <i class="fas fa-paper-plane me-2"></i>Submit Request
                     </button>
-                    <a href="{{ url('/admin/booking-requests') }}" class="btn btn-link text-secondary ml-2">Cancel</a>
+                    <a href="{{ url('/booking-requests') }}" class="btn btn-link text-secondary ml-2">Cancel</a>
                 </div>
             </form>
         </div>
@@ -348,7 +348,7 @@ $(function () {
 
         $.ajax({
             // 💡 关键修复：这里的路径强制和你的新后台 Controller 保持一致！
-            url: "{{ url('/admin/booking-requests/check-availability') }}",
+            url: "{{ url('/booking-requests/check-availability') }}",
             method: 'GET',
             data: { lab_id: $labSelect.val(), date: $dateInput.val() },
             headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },

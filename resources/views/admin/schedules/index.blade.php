@@ -173,7 +173,7 @@
 
 @section('content')
 <div class="filter-bar">
-    <form action="{{ url('/admin/schedules') }}" method="GET" class="d-flex align-items-center w-100 m-0">
+    <form action="{{ url('/schedules') }}" method="GET" class="d-flex align-items-center w-100 m-0">
         <input type="hidden" name="date" value="{{ $currentDate->format('Y-m-d') }}">
         
         <div class="d-flex align-items-center mr-4">
@@ -220,7 +220,7 @@
                     elseif (!empty($selectedLecturerId)) { $resetParams['view_target'] = 'lec_' . $selectedLecturerId; }
                     $resetParams['date'] = $currentDate->format('Y-m-d');
                 @endphp
-                <a href="{{ url('/admin/schedules?' . http_build_query($resetParams)) }}" class="btn btn-sm btn-outline-secondary ml-3 py-0">Reset</a>
+                <a href="{{ url('/schedules?' . http_build_query($resetParams)) }}" class="btn btn-sm btn-outline-secondary ml-3 py-0">Reset</a>
             </div>
         @endif
     </form>
@@ -242,7 +242,7 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary mr-2" id="toggle-sidebar-btn" title="Toggle Sidebar">
                         <i class="fas fa-expand-arrows-alt"></i>
                     </button>
-                    <a href="{{ url('/admin/schedules/add') }}" class="btn btn-sm btn-primary mr-2"><i class="fas fa-plus"></i> Add</a>
+                    <a href="{{ url('/schedules/add') }}" class="btn btn-sm btn-primary mr-2"><i class="fas fa-plus"></i> Add</a>
                     
                     <div class="btn-group btn-group-sm">
                         @php
@@ -256,17 +256,17 @@
                         @if($selectedSemesterId && !($canGoPrevWeek ?? true))
                             <a href="#" class="btn btn-default disabled"><i class="fas fa-chevron-left"></i> Prev</a>
                         @else
-                            <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => $prevWeek]))) }}" class="btn btn-default">
+                            <a href="{{ url('/schedules?' . http_build_query(array_merge($linkParams, ['date' => $prevWeek]))) }}" class="btn btn-default">
                                 <i class="fas fa-chevron-left"></i> Prev
                             </a>
                         @endif
 
-                        <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => \Carbon\Carbon::now()->format('Y-m-d')]))) }}" class="btn btn-default">Current</a>
+                        <a href="{{ url('/schedules?' . http_build_query(array_merge($linkParams, ['date' => \Carbon\Carbon::now()->format('Y-m-d')]))) }}" class="btn btn-default">Current</a>
 
                         @if($selectedSemesterId && !($canGoNextWeek ?? true))
                             <a href="#" class="btn btn-default disabled">Next <i class="fas fa-chevron-right"></i></a>
                         @else
-                            <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => $nextWeek]))) }}" class="btn btn-default">
+                            <a href="{{ url('/schedules?' . http_build_query(array_merge($linkParams, ['date' => $nextWeek]))) }}" class="btn btn-default">
                                 Next <i class="fas fa-chevron-right"></i>
                             </a>
                         @endif
@@ -340,7 +340,7 @@
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @endif
                                                 @endif
@@ -363,7 +363,7 @@
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @endif
                                                 @endif
@@ -383,11 +383,11 @@
 
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @elseif(isset($slot['data']->id))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @endif
                                                 @endif
@@ -427,11 +427,11 @@
                     $qs = !empty($linkParams) ? '&' . http_build_query($linkParams) : '';
                 @endphp
                 
-                <a href="{{ url('/admin/schedules?date=' . (Str::contains($prevMonth, '&') ? $prevMonth : $prevMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
+                <a href="{{ url('/schedules?date=' . (Str::contains($prevMonth, '&') ? $prevMonth : $prevMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
                     <i class="fas fa-chevron-left"></i>
                 </a>
                 <strong style="font-size: 0.9rem;">{{ $monthName }}</strong>
-                <a href="{{ url('/admin/schedules?date=' . (Str::contains($nextMonth, '&') ? $nextMonth : $nextMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
+                <a href="{{ url('/schedules?date=' . (Str::contains($nextMonth, '&') ? $nextMonth : $nextMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
                     <i class="fas fa-chevron-right"></i>
                 </a>
             </div>
@@ -453,7 +453,7 @@
                             <tr>
                                 @foreach($week as $day)
                                     <td class="{{ !$day['is_current_month'] ? 'text-muted' : '' }} {{ $day['is_today'] ? 'today text-primary' : '' }} {{ $day['is_selected_week'] && !$day['is_today'] ? 'selected-week' : '' }}">
-                                        <a href="{{ url('/admin/schedules?date=' . $day['date'] . $qs) }}">{{ $day['day'] }}</a>
+                                        <a href="{{ url('/schedules?date=' . $day['date'] . $qs) }}">{{ $day['day'] }}</a>
                                     </td>
                                 @endforeach
                             </tr>
@@ -483,7 +483,7 @@
                             {{ $weekDates[$day]['date'] ?? $day }} | 
                             {{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}
                         </span>
-                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="text-primary font-weight-bold">Edit</a>
+                        <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="text-primary font-weight-bold">Edit</a>
                     </div>
                 @endif
             @endforeach
