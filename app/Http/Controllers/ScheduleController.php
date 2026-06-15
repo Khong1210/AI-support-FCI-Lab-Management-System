@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class ScheduleController extends Controller
 {
@@ -581,7 +582,7 @@ class ScheduleController extends Controller
             $booking = Booking::create([
                 'lab_id' => $request->input('lab_id'),
                 'type' => 'booking',
-                'user_id' => auth()->id() ?? null,
+                'user_id' => Auth::id() ?? null,
                 'booker_name' => $request->input('booker_name'),
                 'purpose' => $request->input('purpose'),
                 'date' => $request->input('date'),
@@ -912,12 +913,27 @@ public function getAvailableTimeSlots(Request $request)
     return redirect($finalRedirectUrl)->with('success', 'Schedule updated successfully.');
 }
    
-    public function destroy(Request $request, Schedule $schedule)
+   public function destroy(Request $request, Schedule $schedule)
     {
+        if (!empty($schedule->booking_id)) {
+            $linkedBooking = \App\Models\Booking::find($schedule->booking_id);
+        
+            if ($linkedBooking) {
+              
+                if (!empty($linkedBooking->booking_request_id)) {
+                    \App\Models\BookingRequest::where('id', $linkedBooking->booking_request_id)->delete();
+                }
+                
+                // 彻底抹去 bookings 表里的本体
+                $linkedBooking->delete();
+            }
+        }
+
         $schedule->delete();
 
         $queryParams = $request->query();
+
         return redirect()->to(url('/schedules?' . http_build_query($queryParams)))
-                         ->with('status', 'Schedule deleted successfully.');
+                        ->with('status', 'Schedule and its underlying record deleted successfully.');
     }
 }

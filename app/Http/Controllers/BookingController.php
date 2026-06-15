@@ -22,8 +22,8 @@ class BookingController extends Controller
         $query = Booking::with(['user', 'laboratory']);
 
         // Scenario A: Lecturer Personal Data Isolation
-        if (auth()->check() && auth()->user()->role_id == 5) {
-            $query->where('user_id', auth()->id());
+        if (auth::check() && auth::user()->role_id == 5) {
+            $query->where('user_id', auth::id());
         }
 
         if ($status = $request->input('status')) {
