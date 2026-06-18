@@ -10,6 +10,7 @@ class AiProxyController extends Controller
 {
     public function generate(Request $request)
     {
+        return response("Controller 真的有讀到最新修改！", 200)->header('Content-Type', 'text/plain');
         $candidates = [
             env('GOOGLE_AI_KEY'),
             env('GEMINI_API_KEY'),
@@ -50,10 +51,17 @@ class AiProxyController extends Controller
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         try {
-            $resp = Http::withOptions(['verify' => false])->withHeaders([
+            // 🌟 核心修正：將 Http:: 改為 Http::withoutVerifying()，直接物理超度 SSL 證書錯誤！
+            $resp = Http::withoutVerifying()
+           ->withOptions([
+                'verify' => false,      // 強制關閉 SSL 驗證
+                'timeout' => 30,        // 防止超時
+            ])
+            ->withHeaders([
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-            ])->post($url, $body);
+            ])
+            ->post($url, $body);
 
             if (!$resp->successful()) {
                 Log::warning('AI proxy non-200 response', ['status' => $resp->status(), 'body' => $resp->body()]);
@@ -77,6 +85,7 @@ class AiProxyController extends Controller
                 $extracted = $resp->body();
             }
 
+            // 🌟 配合你剛剛改好的前端，直接回傳純文字
             return response($extracted, 200)->header('Content-Type', 'text/plain');
 
         } catch (\Exception $e) {
