@@ -19,7 +19,7 @@
                         <i class="fas fa-users text-blue-600 text-2xl"></i>
                     </div>
                 </div>
-                <a href="{{ url('/management/users') }}" class="mt-4 inline-flex items-center text-blue-600 hover:text-blue-700 font-medium text-sm">
+                <a href="{{ url('/admin/users') }}" class="mt-4 inline-flex items-center text-blue-600 hover:text-blue-700 font-medium text-sm">
                     View Details <i class="fas fa-arrow-right ml-2"></i>
                 </a>
             </div>
@@ -37,7 +37,7 @@
                         <i class="fas fa-desktop text-green-600 text-2xl"></i>
                     </div>
                 </div>
-                <a href="{{ url('/equipment') }}" class="mt-4 inline-flex items-center text-green-600 hover:text-green-700 font-medium text-sm">
+                <a href="{{ url('/admin/equipment') }}" class="mt-4 inline-flex items-center text-green-600 hover:text-green-700 font-medium text-sm">
                     View Details <i class="fas fa-arrow-right ml-2"></i>
                 </a>
             </div>
@@ -55,7 +55,7 @@
                         <i class="fas fa-cube text-amber-600 text-2xl"></i>
                     </div>
                 </div>
-                <a href="{{ url('/software') }}" class="mt-4 inline-flex items-center text-amber-600 hover:text-amber-700 font-medium text-sm">
+                <a href="{{ url('/admin/software') }}" class="mt-4 inline-flex items-center text-amber-600 hover:text-amber-700 font-medium text-sm">
                     View Details <i class="fas fa-arrow-right ml-2"></i>
                 </a>
             </div>
@@ -73,7 +73,7 @@
                         <i class="fas fa-calendar-alt text-red-600 text-2xl"></i>
                     </div>
                 </div>
-                <a href="{{ url('/bookings') }}" class="mt-4 inline-flex items-center text-red-600 hover:text-red-700 font-medium text-sm">
+                <a href="{{ url('/admin/bookings') }}" class="mt-4 inline-flex items-center text-red-600 hover:text-red-700 font-medium text-sm">
                     View Details <i class="fas fa-arrow-right ml-2"></i>
                 </a>
             </div>
@@ -129,7 +129,7 @@
             </div>
 
             <div class="space-y-3">
-                <a href="{{ url('/management/users/add') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
+                <a href="{{ url('/admin/users/add') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
                     <div class="flex items-center">
                         <div class="bg-white/30 rounded-lg p-3 mr-3">
                             <i class="fas fa-user-plus text-white text-lg"></i>
@@ -141,7 +141,7 @@
                     </div>
                 </a>
 
-                <a href="{{ url('/equipment') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
+                <a href="{{ url('/admin/equipment') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
                     <div class="flex items-center">
                         <div class="bg-white/30 rounded-lg p-3 mr-3">
                             <i class="fas fa-server text-white text-lg"></i>
@@ -153,7 +153,7 @@
                     </div>
                 </a>
 
-                <a href="{{ url('/management/semesters') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
+                <a href="{{ url('/admin/semesters') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
                     <div class="flex items-center">
                         <div class="bg-white/30 rounded-lg p-3 mr-3">
                             <i class="fas fa-calendar text-white text-lg"></i>

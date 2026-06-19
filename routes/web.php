@@ -76,6 +76,10 @@ Route::middleware(['auth'])->group(function () {
         // AI Engine Integration Modules (CR)
         Route::get('/ai-scheduler', [AiSchedulerController::class, 'index']);
         Route::post('/api/ai/generate', [AiSchedulerController::class, 'generateAiSchedule']);
+        Route::post('/ai-scheduler/generate', [AiSchedulerController::class, 'generateAiSchedule'])
+        ->name('ai-scheduler.generate');
+        Route::post('/ai-scheduler/save', [AiSchedulerController::class, 'saveOptimizedSchedule'])
+        ->name('ai-scheduler.save');
 
         // Core Academic Schedule Structures (CRUD)
         Route::get('/schedules/add', [ScheduleController::class, 'create']);

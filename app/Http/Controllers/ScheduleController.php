@@ -511,36 +511,57 @@ class ScheduleController extends Controller
             return;
         }
 
-        // 衝突檢查
-        $labId = $request->input('lab_id');
-        $date = $request->input('date');
-        
-        $newStart = \Carbon\Carbon::createFromFormat('H:i', $start)->format('H:i:s');
-        $newEnd = \Carbon\Carbon::createFromFormat('H:i', $end)->format('H:i:s');
-        $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
-        
-        // 1) 檢查 schedules 表
-        $schedules = Schedule::where('lab_id', $labId)
-            ->where(function ($q) use ($dayOfWeek, $date) {
-                $q->where(function ($sub) use ($dayOfWeek) {
-                    $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
-                })->orWhere(function ($sub) use ($date) {
-                    $sub->where('is_recurring', false)->where('date', $date);
-                });
-            })->get(['start_time', 'end_time']);
+        // 1. Bypass conflict checks ONLY if it is an All-Day Maintenance
+        $isAllDayMaintenance = ($type === 'maintenance' && $request->input('all_day') == '1');
 
-        foreach ($schedules as $s) {
-            if ($s->start_time < $newEnd && $s->end_time > $newStart) {
-                $validator->errors()->add('start_time', '與既有排程衝突，請選擇其他時段');
-                return;
-            }
-        }
+        if (!$isAllDayMaintenance) {
+            $labId = $request->input('lab_id');
+            $date = $request->input('date');
 
-        // 2) 檢查 bookings 表
-        $bookings = Booking::where('lab_id', $labId)->where('date', $date)->get(['start_time', 'end_time']);
-        foreach ($bookings as $b) {
-            if ($b->start_time < $newEnd && $b->end_time > $newStart) {
-                $validator->errors()->add('start_time', '與既有預訂或維護衝突，請選擇其他時段');
+            try {
+                // Convert input times to standard H:i:s format for accurate database string comparison
+                $newStart = \Carbon\Carbon::createFromFormat('H:i', $start)->format('H:i:s');
+                $newEnd = \Carbon\Carbon::createFromFormat('H:i', $end)->format('H:i:s');
+                $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
+
+                // Check conflicts against `schedules` table
+                $schedules = Schedule::where('lab_id', $labId)
+                    ->where(function ($q) use ($dayOfWeek, $date) {
+                        $q->where(function ($sub) use ($dayOfWeek) {
+                            $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
+                        })->orWhere(function ($sub) use ($date) {
+                            $sub->where('is_recurring', false)->where('date', $date);
+                        });
+                    })->get(['start_time', 'end_time']);
+
+                foreach ($schedules as $s) {
+                    $existingStart = $s->start_time; // Already in H:i:s format from DB
+                    $existingEnd = $s->end_time;
+
+                    // Strict interval overlap formula: (StartA < EndB) AND (EndA > StartB)
+                    if ($newStart < $existingEnd && $newEnd > $existingStart) {
+                        $validator->errors()->add('start_time', "Conflict with existing regular scheduling (conflict period: {$existingStart} - {$existingEnd})，Please select again。");
+                        return;
+                    }
+                }
+
+                // Check conflicts against `bookings` table
+                $bookings = Booking::where('lab_id', $labId)
+                    ->where('date', $date)
+                    ->get(['start_time', 'end_time']);
+
+                foreach ($bookings as $b) {
+                    $existingStart = $b->start_time;
+                    $existingEnd = $b->end_time;
+
+                    if ($newStart < $existingEnd && $newEnd > $existingStart) {
+                        $validator->errors()->add('start_time', "Conflict with existing bookings or maintenance schedules (conflict period: {$existingStart} - {$existingEnd})，Please select again。");
+                        return;
+                    }
+                }
+
+            } catch (\Exception $ex) {
+                $validator->errors()->add('start_time', 'An error occurred during time conflict check. Please check your input format.');
                 return;
             }
         }
