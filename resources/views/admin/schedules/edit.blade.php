@@ -177,6 +177,12 @@
         font-size: 0.875em;
         margin-top: 0.25rem;
     }
+    .readonly-select-override {
+        pointer-events: none !important;
+        background-color: #e9ecef !important;
+        color: #495057 !important;
+        touch-action: none;
+    }
 </style>
 @endpush
 
@@ -251,24 +257,54 @@ function updateStartTimeOptions() {
 
     if (!dateValue || !labId) return;
 
-    // 这里调用你刚才 Controller 写的那个能剔除占用时段的方法
-    // 记得在 URL 里加上 exclude_id，这样编辑时就不会把自己算作冲突
-    fetch(`/schedules/get-available-time-slots?date=${dateValue}&laboratory_id=${labId}&exclude_schedule_id=${excludeId}`)
+    // Fetch occupied slots from backend (queries both schedules + bookings with proper recurring logic, excluding current)
+    fetch(`/schedules/check-occupied-slots?date=${dateValue}&laboratory_id=${labId}&exclude_schedule_id=${excludeId}`)
         .then(res => res.json())
-        .then(availableSlots => {
+        .then(occupiedSlots => {
             startSelect.innerHTML = '<option value="">Select Time</option>';
             
-            availableSlots.forEach(time => {
+            // Build all time options from 08:00 to 17:00
+            for (let h = 8; h <= 17; h++) {
+                const time = (h < 10 ? '0' : '') + h + ':00';
                 const opt = document.createElement('option');
                 opt.value = time;
                 opt.textContent = time;
                 
-                // 如果是当前编辑的那个原始时间，保持选中
-                if (time === currentStartValue) {
+                // Check if this hour slot falls within any occupied range
+                const isOccupied = occupiedSlots.some(slot => {
+                    return time >= slot.start_time && time < slot.end_time;
+                });
+                
+                if (isOccupied) {
+                    opt.disabled = true;
+                    opt.classList.add('disabled-slot');
+                    opt.textContent = time + ' (occupied)';
+                }
+                
+                // Preserve current edited time selection if still valid
+                if (time === currentStartValue && !isOccupied) {
                     opt.selected = true;
                 }
+                
                 startSelect.appendChild(opt);
-            });
+            }
+        })
+        .catch(() => {
+            // Fallback: use available-time-slots
+            fetch(`/schedules/get-available-time-slots?date=${dateValue}&laboratory_id=${labId}&exclude_schedule_id=${excludeId}`)
+                .then(res => res.json())
+                .then(availableSlots => {
+                    startSelect.innerHTML = '<option value="">Select Time</option>';
+                    availableSlots.forEach(time => {
+                        const opt = document.createElement('option');
+                        opt.value = time;
+                        opt.textContent = time;
+                        if (time === currentStartValue) {
+                            opt.selected = true;
+                        }
+                        startSelect.appendChild(opt);
+                    });
+                });
         });
 }
 
@@ -378,6 +414,44 @@ function updateStartTimeOptions() {
         }
     }
 
+    // ========== ALL-DAY MAINTENANCE HANDLER ==========
+    function handleAllDayCheckbox() {
+        const typeInput = document.getElementById('schedule-type');
+        const allDayCheckbox = document.getElementById('all-day-checkbox');
+        const startSelect = document.getElementById('start-time-select');
+        const endSelect = document.getElementById('end-time-select');
+
+        if (!typeInput || !allDayCheckbox || !startSelect || !endSelect) return;
+
+        const isMaintenance = (typeInput.value === 'maintenance');
+
+        if (isMaintenance && allDayCheckbox.checked) {
+            startSelect.value = '08:00';
+            endSelect.value = '18:00';
+
+            // Remove HTML5 required constraint — values are auto-filled, not user-selected
+            startSelect.required = false;
+            endSelect.required = false;
+
+            startSelect.classList.add('readonly-select-override');
+            endSelect.classList.add('readonly-select-override');
+        } else {
+            // Reset and re-enable time selects
+            if (!isMaintenance) {
+                allDayCheckbox.checked = false;
+            }
+            startSelect.value = '';
+            endSelect.value = '';
+
+            // Restore required so normal form validation applies
+            startSelect.required = true;
+            endSelect.required = true;
+
+            startSelect.classList.remove('readonly-select-override');
+            endSelect.classList.remove('readonly-select-override');
+        }
+    }
+
     // ========== INITIALIZATION ==========
     document.addEventListener('DOMContentLoaded', function () {
         updateScheduleDay();
@@ -390,12 +464,51 @@ function updateStartTimeOptions() {
         const startSelect = document.getElementById('start-time-select');
         const endSelect = document.getElementById('end-time-select');
         const form = document.getElementById('edit-schedule-form');
+        const allDayCheckbox = document.getElementById('all-day-checkbox');
+        const allDayWrapper = document.getElementById('all-day-wrapper');
+        const typeInput = document.getElementById('schedule-type');
+
+        // Show/hide all-day wrapper based on schedule type
+        if (allDayWrapper && typeInput) {
+            if (typeInput.value === 'maintenance') {
+                allDayWrapper.style.display = 'block';
+                // If currently all-day (start=08:00, end=18:00 pre-selected from server), preset the checkbox
+                const currentStart = (startSelect && startSelect.value) ? startSelect.value : '';
+                if (currentStart === '08:00' && endSelect && endSelect.value === '18:00') {
+                    if (allDayCheckbox) allDayCheckbox.checked = true;
+                    handleAllDayCheckbox();
+                }
+            } else {
+                allDayWrapper.style.display = 'none';
+                if (allDayCheckbox) allDayCheckbox.checked = false;
+            }
+        }
 
         if (dateInput) dateInput.addEventListener('change', function () { updateScheduleDay(); updateStartTimeOptions(); });
         if (labSelect) labSelect.addEventListener('change', updateStartTimeOptions);
         if (courseSelect) courseSelect.addEventListener('change', function () { updateStartTimeOptions(); calculateEndTime(); });
         if (startSelect) startSelect.addEventListener('change', calculateEndTime);
-        if (form) form.addEventListener('submit', handleAjaxFormSubmit);
+
+        if (allDayCheckbox) {
+            allDayCheckbox.addEventListener('change', handleAllDayCheckbox);
+        }
+
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Submit safeguard: if all-day is checked, ensure required is off so HTML5 validator doesn't block
+                const allDay = document.getElementById('all-day-checkbox');
+                const start = document.getElementById('start-time-select');
+                const end = document.getElementById('end-time-select');
+                if (allDay && allDay.checked) {
+                    if (start) start.required = false;
+                    if (end) end.required = false;
+                }
+                // Re-enable any read-only-locked selects before submission so values are sent
+                const lockedSelects = document.querySelectorAll('.readonly-select-override');
+                lockedSelects.forEach(select => select.classList.remove('readonly-select-override'));
+            });
+            form.addEventListener('submit', handleAjaxFormSubmit);
+        }
     });
 </script>
 @endpush
