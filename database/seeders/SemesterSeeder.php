@@ -17,20 +17,20 @@ class SemesterSeeder extends Seeder
     {
         Semester::create([
             'name' => 'Trimester 1',
-            'start_date' => '2026-01-01',
-            'end_date' => '2026-04-30',
+            'start_date' => '2025-11-03',
+            'end_date' => '2026-02-08',
         ]);
 
         Semester::create([
             'name' => 'Trimester 2',
-            'start_date' => '2026-05-01',
-            'end_date' => '2026-07-31',
+            'start_date' => '2026-03-30',
+            'end_date' => '2026-07-05',
         ]);
 
         Semester::create([
             'name' => 'Trimester 3',
-            'start_date' => '2026-08-01',
-            'end_date' => '2026-11-30',
+            'start_date' => '2026-08-10',
+            'end_date' => '2026-10-27',
         ]);
     }
 }

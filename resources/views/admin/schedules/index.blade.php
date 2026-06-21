@@ -103,20 +103,27 @@
     
     /* Calendar Grid for right column */
     .mini-calendar {
-        width: 100%;
+        table-layout: fixed !important; /* 🌟 核心修复1：强行锁定表格布局，不允许内容自适应撑开 */
+        width: 100% !important;         /* 确保小日历占满卡片容器 */
         text-align: center;
         border-collapse: collapse;
+    }
+    .mini-calendar th, 
+    .mini-calendar td {
+        width: 14.285% !important;      /* 🌟 核心修复2：死死卡住每列刚好占 1/7 宽度，平分天下 */
+        text-align: center;
+        vertical-align: middle;
+        word-break: break-all;          /* 极端防爆：哪怕链接参数再长，也必须就地折行，绝不撑宽列 */
+        padding: 5px 0;
+        border: 1px solid #dee2e6;
     }
     .mini-calendar th {
         font-weight: 600;
         color: #495057;
-        padding: 5px;
         background-color: #f4f6f9;
-        border: 1px solid #dee2e6;
     }
     .mini-calendar td {
         padding: 4px;
-        border: 1px solid #dee2e6;
     }
     .mini-calendar .text-muted {
         color: #adb5bd !important;
@@ -456,6 +463,13 @@
                                         <a href="{{ url('/schedules?date=' . $day['date'] . $qs) }}">{{ $day['day'] }}</a>
                                     </td>
                                 @endforeach
+                                
+                                {{-- 🌟 核心修复3：安全防线。如果当月最后一周不足 7 天，自动用空 td 补齐，绝对不给浏览器留下把星期三扯宽的架构漏洞 --}}
+                                @if(count($week) < 7)
+                                    @for($i = 0; $i < (7 - count($week)); $i++)
+                                        <td></td>
+                                    @endfor
+                                @endif
                             </tr>
                         @endforeach
                     </tbody>
@@ -476,14 +490,22 @@
         @foreach($timetable as $timeSlot => $daysRow)
             @foreach($daysRow as $day => $slot)
                 @if($slot['type'] === 'maintenance')
-                    @php $hasMaintenance = true; @endphp
+                    @php
+                        $hasMaintenance = true;
+                        // Safe parse compatible with both string & object data (same logic as main table)
+                        $mPurpose = (is_object($slot['data']) && isset($slot['data']->purpose)) ? $slot['data']->purpose : (is_string($slot['data']) ? $slot['data'] : 'Maintenance');
+                        $mStart = (is_object($slot['data']) && isset($slot['data']->start_time)) ? substr($slot['data']->start_time, 0, 5) : $timeSlot;
+                        $mEnd = (is_object($slot['data']) && isset($slot['data']->end_time)) ? substr($slot['data']->end_time, 0, 5) : '';
+                    @endphp
                     <div class="mb-2 pb-1 border-bottom">
-                        <strong class="d-block text-danger">{{ $slot['data']->purpose ?? 'Maintenance' }}</strong>
+                        <strong class="d-block text-danger">{{ $mPurpose }}</strong>
                         <span class="d-block text-muted">
                             {{ $weekDates[$day]['date'] ?? $day }} | 
-                            {{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}
+                            {{ $mStart }}@if($mEnd) - {{ $mEnd }}@endif
                         </span>
-                        <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="text-primary font-weight-bold">Edit</a>
+                        @if(!empty($slot['schedule_id']))
+                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="text-primary font-weight-bold">Edit</a>
+                        @endif
                     </div>
                 @endif
             @endforeach

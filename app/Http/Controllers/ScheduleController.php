@@ -54,8 +54,8 @@ class ScheduleController extends Controller
         $selectedLecturer = $selectedLecturerId ? \App\Models\User::find($selectedLecturerId) : null;
 
         // Only load enroll schedules here, because booking/maintenance slots are rendered separately
-        $scheduleQuery = Schedule::with(['course', 'semester', 'laboratory', 'booking'])
-            ->where('schedule_type', 'enroll');
+        // 修改后：放开限制，允许加载所有类型的排班（enroll, booking, maintenance）
+        $scheduleQuery = Schedule::with(['course', 'semester', 'laboratory', 'booking']);   
        
         if ($selectedSemesterId) {
             $selectedSemester = $semesters->where('id', $selectedSemesterId)->first();
@@ -64,8 +64,12 @@ class ScheduleController extends Controller
                 $semesterEndDate = \Carbon\Carbon::parse($selectedSemester->end_date);
             }
         }
-         if ($selectedSemesterId) {
-            $scheduleQuery->where('semester_id', $selectedSemesterId);
+        // 修改后：如果是 enroll 类型就必须匹配学期；如果是 booking/maintenance，放宽条件，只要它是在本周内即可
+        if ($selectedSemesterId) {
+            $scheduleQuery->where(function ($query) use ($selectedSemesterId) {
+                $query->where('semester_id', $selectedSemesterId)
+                    ->orWhereIn('schedule_type', ['booking', 'maintenance']);
+            });
         }
 
         if ($selectedLabId) {
@@ -114,9 +118,9 @@ class ScheduleController extends Controller
         }
 
         // Fetch Bookings for this week
-        $bookings = \App\Models\Booking::where('lab_id', $selectedLabId)
+       $bookings = \App\Models\Booking::where('lab_id', $selectedLabId)
             ->whereBetween('date', [$startOfWeek->format('Y-m-d'), $startOfWeek->copy()->endOfWeek()->format('Y-m-d')])
-            ->where('status', 2)
+            ->whereIn('status', [1, 2]) 
             ->get();
 
         // Build Timetable Matrix
@@ -134,15 +138,7 @@ class ScheduleController extends Controller
             }
         }
 
-        if ($isLabMaintenance) {
-            foreach ($timetable as $time => &$daysRow) {
-                foreach ($days as $day) {
-                    $daysRow[$day]['type'] = 'maintenance';
-                    $daysRow[$day]['data'] = 'Lab Closed for Maintenance';
-                }
-            }
-        } else {
-            foreach ($schedules as $sched) {
+        foreach ($schedules as $sched) {
                 try {
                     // For recurring schedules: render on the day_of_week for every week
                     if ($sched->is_recurring) {
@@ -234,7 +230,28 @@ class ScheduleController extends Controller
                 }
             } catch (\Exception $e) { }
             }
+
+        // ===== Lab Full Closure Overlay (applied AFTER all schedules/bookings) =====
+        // Only paint 'maintenance' on cells that remain 'none', so real schedules
+        // and bookings still show through. Data is stored as an object-compatible
+        // stdClass so the Blade sidebar won't crash on ->purpose access.
+        if ($isLabMaintenance) {
+            foreach ($timetable as $time => &$daysRow) {
+                foreach ($days as $day) {
+                    if ($daysRow[$day]['type'] === 'none') {
+                        $daysRow[$day]['type'] = 'maintenance';
+                        $daysRow[$day]['data'] = (object) [
+                            'purpose'    => 'Lab Closed for Maintenance',
+                            'start_time' => '08:00:00',
+                            'end_time'   => '18:00:00',
+                        ];
+                        // schedule_id intentionally stays null → Blade Edit button hidden (safe)
+                    }
+                }
+            }
+            unset($daysRow);
         }
+        // ===== End Lab Full Closure Overlay =====
 
         // Setup monthly calendar logic
         $startOfMonth = $currentDate->copy()->startOfMonth();
@@ -488,7 +505,9 @@ class ScheduleController extends Controller
     $rules = [
         'schedule_type' => ['required', Rule::in(['enroll','booking','maintenance'])],
         'lab_id' => ['required', 'exists:laboratories,id'],
-        'date' => ['required', 'date'],
+        'date' => in_array($type, ['booking', 'maintenance']) 
+            ? ['required', 'date', 'after_or_equal:today'] 
+            : ['required', 'date'],
         'start_time' => ['required'],
         'end_time' => ['required'],
         'is_recurring' => ['sometimes', 'in:0,1'],
@@ -514,6 +533,19 @@ class ScheduleController extends Controller
         // CRITICAL PROTECTION: Completely bypass overlap check if it's an All-Day Maintenance override
         if ($isAllDayMaintenance) {
             return;
+        }
+
+        // ====== 加固验证：Enroll 模式下严格限制日期属于所选学期的 Bounds ======
+        if ($type === 'enroll') {
+            $semesterId = $request->input('semester_id');
+            $semester = \App\Models\Semester::find($semesterId);
+            if ($semester) {
+                $inputDate = $request->input('date');
+                if ($inputDate < $semester->start_date || $inputDate > $semester->end_date) {
+                    $validator->errors()->add('date', "The selected date ({$inputDate}) falls outside the range of this semester ({$semester->start_date} to {$semester->end_date}).");
+                    return;
+                }
+            }
         }
 
         $labId = $request->input('lab_id');
@@ -572,6 +604,7 @@ class ScheduleController extends Controller
         
         $dayOfWeek = \Carbon\Carbon::parse($request->input('date'))->format('l');
         $date = $request->input('date');
+        
         // Ensure standard string timestamp format matching DB precision (H:i:s)
         $startTime = \Carbon\Carbon::createFromFormat('H:i', substr($request->input('start_time'), 0, 5))->format('H:i:s');
         $endTime = \Carbon\Carbon::createFromFormat('H:i', substr($request->input('end_time'), 0, 5))->format('H:i:s');
@@ -580,7 +613,7 @@ class ScheduleController extends Controller
         if ($isAllDayMaintenance) {
             $labId = $request->input('lab_id');
 
-            // 1. Find all schedules for this lab on this date (both recurring matching day-of-week AND date-specific)
+            // 1. Find all schedules for this lab on this date
             $conflictScheduleIds = Schedule::where('lab_id', $labId)
                 ->where(function ($q) use ($dayOfWeek, $date) {
                     $q->where(function ($sub) use ($dayOfWeek) {
@@ -596,7 +629,7 @@ class ScheduleController extends Controller
                 ->whereNotNull('booking_id')
                 ->pluck('booking_id');
 
-            // 3. Also find standalone bookings for this lab on this date (not linked to any schedule)
+            // 3. Also find standalone bookings for this lab on this date
             $standaloneBookingIds = Booking::where('lab_id', $labId)
                 ->where('date', $date)
                 ->whereNotIn('id', $linkedBookingIds)
@@ -605,24 +638,34 @@ class ScheduleController extends Controller
             // 4. Merge all booking IDs to delete
             $allBookingIdsToDelete = $linkedBookingIds->merge($standaloneBookingIds)->unique();
 
-            // 5. Delete schedules first (child records)
+            // 5. Delete child schedules first
             if ($conflictScheduleIds->isNotEmpty()) {
                 Schedule::whereIn('id', $conflictScheduleIds)->delete();
             }
 
-            // 6. Delete bookings (parent records — note: also handle booking_requests if needed)
+            // 6. Delete parent bookings & clean up request maps
             if ($allBookingIdsToDelete->isNotEmpty()) {
-                // Also clean up any booking requests linked to these bookings
                 \App\Models\BookingRequest::whereIn('booking_id', $allBookingIdsToDelete)->delete();
                 Booking::whereIn('id', $allBookingIdsToDelete)->delete();
             }
         }
         // ===== END ALL-DAY MAINTENANCE OVERRIDE =====
 
+        // 🚀【智能修复补丁】非 Enroll 模式（如 Booking）下，如果前端没传学期，根据选择的日期自动计算并锁回正确的学期ID
+        $targetSemesterId = $request->input('semester_id');
+        if (!$targetSemesterId && $date) {
+            $matchedSemester = \App\Models\Semester::where('start_date', '<=', $date)
+                ->where('end_date', '>=', $date)
+                ->first();
+            if ($matchedSemester) {
+                $targetSemesterId = $matchedSemester->id;
+            }
+        }
+
         if ($type === 'enroll') {
             Schedule::create([
                 'schedule_type' => 'enroll',
-                'semester_id' => $request->input('semester_id'),
+                'semester_id' => $targetSemesterId,
                 'lab_id' => $request->input('lab_id'),
                 'course_id' => $request->input('course_id'),
                 'booking_id' => null,
@@ -647,7 +690,7 @@ class ScheduleController extends Controller
 
             Schedule::create([
                 'schedule_type' => 'booking',
-                'semester_id' => $request->input('semester_id') ?: null,
+                'semester_id' => $targetSemesterId ?: null,
                 'lab_id' => $request->input('lab_id'),
                 'course_id' => null,
                 'booking_id' => $booking->id,
@@ -672,7 +715,7 @@ class ScheduleController extends Controller
 
             Schedule::create([
                 'schedule_type' => 'maintenance',
-                'semester_id' => null,
+                'semester_id' => $targetSemesterId ?: null,
                 'lab_id' => $request->input('lab_id'),
                 'course_id' => null,
                 'booking_id' => $booking->id,

@@ -55,7 +55,10 @@
                         <select id="semester-id-select" name="semester_id" class="form-control @error('semester_id') is-invalid @enderror" required>
                             <option value="">Select Semester</option>
                             @foreach($semesters as $semester)
-                                <option value="{{ $semester->id }}" {{ old('semester_id', request('semester_id')) == $semester->id ? 'selected' : '' }}>
+                                <option value="{{ $semester->id }}" 
+                                        data-start-date="{{ $semester->start_date }}" 
+                                        data-end-date="{{ $semester->end_date }}"
+                                        {{ old('semester_id', request('semester_id')) == $semester->id ? 'selected' : '' }}>
                                     {{ $semester->name }} ({{ $semester->start_date }} - {{ $semester->end_date }})
                                 </option>
                             @endforeach
@@ -215,8 +218,7 @@
     </div>
 </div>
 </div> @endsection
-@push('styles')
-<style>
+@push('styles')<style>
     select option.disabled-slot {
         background-color: #e9ecef !important;
         color: #6c757d !important;
@@ -236,23 +238,25 @@
     }
 </style>
 @endpush
+
 @push('scripts')
 <script>
     // ========== UTILITY FUNCTIONS ==========
-    // 在 script 最上方添加这个初始化函数
-function initializeTimeOptions() {
-    const startTimeSelect = document.getElementById('start-time-select');
-    // 如果是第一次加载，先填满基础数据
-    if (startTimeSelect.options.length <= 1) {
-        for (let h = 8; h <= 18; h++) {
-            const time = (h < 10 ? '0' : '') + h + ':00';
-            const opt = document.createElement('option');
-            opt.value = time;
-            opt.textContent = time;
-            startTimeSelect.appendChild(opt);
+    function initializeTimeOptions() {
+        const startTimeSelect = document.getElementById('start-time-select');
+        if (!startTimeSelect) return;
+        // 如果是第一次加载，先填满基础数据
+        if (startTimeSelect.options.length <= 1) {
+            for (let h = 8; h <= 18; h++) {
+                const time = (h < 10 ? '0' : '') + h + ':00';
+                const opt = document.createElement('option');
+                opt.value = time;
+                opt.textContent = time;
+                startTimeSelect.appendChild(opt);
+            }
         }
     }
-}
+
     function parseTimeToMinutes(time) {
         if (!time) return 0;
         const parts = time.split(':');
@@ -290,77 +294,127 @@ function initializeTimeOptions() {
     }
 
     // ========== 核心：时间冲突检测与下拉框变灰 ==========
+    function updateStartTimeOptions() {
+        const date = document.getElementById('schedule-date').value;
+        const labId = document.getElementById('lab-id-select').value;
+        const startTimeSelect = document.getElementById('start-time-select');
+        const endSelect = document.getElementById('end-time-select');
+
+        if (!date || !labId || !startTimeSelect) return;
+
+        // 暂存用户当前选中的值
+        const currentStartValue = startTimeSelect.value;
+
+        fetch(`/schedules/check-occupied-slots?date=${date}&laboratory_id=${labId}`)
+            .then(res => res.ok ? res.json() : [])
+            .then(occupiedSlots => {
+                if (!Array.isArray(occupiedSlots)) occupiedSlots = [];
+                
+                startTimeSelect.innerHTML = '<option value="">Select Time</option>';
+                
+                for (let h = 8; h <= 17; h++) {
+                    const time = (h < 10 ? '0' : '') + h + ':00'; // 生成 "08:00"
+                    const opt = document.createElement('option');
+                    opt.value = time;
+                    opt.textContent = time;
+                    
+                    // 🎯 修复核心1：超级强悍、多字段多格式兼容的碰撞算法
+                    const isOccupied = occupiedSlots.some(slot => {
+                        if (!slot) return false;
+                        
+                        // 兼容后端可能返回的各种字段名 (start_time 或 start)
+                        let rawStart = slot.start_time || slot.start;
+                        let rawEnd = slot.end_time || slot.end;
+                        
+                        if (!rawStart || !rawEnd) return false;
+                        
+                        // 安全截取前 5 位 (例如 "13:00:00" -> "13:00", "13:00" -> "13:00")
+                        const sTime = rawStart.length >= 5 ? rawStart.substring(0, 5) : rawStart;
+                        const eTime = rawEnd.length >= 5 ? rawEnd.substring(0, 5) : rawEnd;
+                        
+                        return time >= sTime && time < eTime;
+                    });
+                    
+                    if (isOccupied) {
+                        opt.disabled = true;
+                        opt.classList.add('disabled-slot');
+                        opt.textContent = time + ' (occupied)';
+                    }
+                    
+                    // 恢复之前的选择
+                    if (time === currentStartValue) {
+                        opt.selected = true;
+                    }
+                    
+                    startTimeSelect.appendChild(opt);
+                }
+
+                // 联动洗牌【结束时间】
+                if (endSelect) {
+                    const chosenStart = startTimeSelect.value;
+                    const endCurrentValue = endSelect.value;
+                    
+                    Array.from(endSelect.options).forEach(opt => {
+                        if (!opt.value) return;
+
+                        opt.disabled = false;
+                        opt.classList.remove('disabled-slot');
+                        opt.text = opt.text.replace(' (occupied)', '');
+
+                        const endTimeOccupied = occupiedSlots.some(slot => {
+                            if (!slot) return false;
+                            let rawStart = slot.start_time || slot.start;
+                            let rawEnd = slot.end_time || slot.end;
+                            if (!rawStart || !rawEnd) return false;
+                            
+                            const sTime = rawStart.length >= 5 ? rawStart.substring(0, 5) : rawStart;
+                            const eTime = rawEnd.length >= 5 ? rawEnd.substring(0, 5) : rawEnd;
+                            
+                            return opt.value > sTime && opt.value <= eTime;
+                        });
+                        
+                        if (endTimeOccupied) {
+                            opt.disabled = true;
+                            opt.classList.add('disabled-slot');
+                            opt.text += ' (occupied)';
+                        }
+
+                        if (chosenStart && opt.value <= chosenStart) {
+                            opt.disabled = true;
+                            opt.classList.add('disabled-slot');
+                        }
+                    });
+
+                    if (endCurrentValue) {
+                        const targetOpt = Array.from(endSelect.options).find(o => o.value === endCurrentValue && !o.disabled);
+                        if (targetOpt) targetOpt.selected = true;
+                    }
+                }
+                
+            })
+            .catch(err => {
+                console.error('Render fallback:', err);
+                startTimeSelect.innerHTML = '<option value="">Select Time</option>';
+                for (let h = 8; h <= 17; h++) {
+                    const time = (h < 10 ? '0' : '') + h + ':00';
+                    const opt = document.createElement('option');
+                    opt.value = time;
+                    opt.textContent = time;
+                    if (time === currentStartValue) opt.selected = true;
+                    startTimeSelect.appendChild(opt);
+                }
+            });
+    }
+
     function fetchConflicts(date, labId, excludeId = '') {
         if (!date || !labId) return Promise.resolve([]);
-
-        const params = new URLSearchParams({
-            date: date,
-            lab_id: labId,
-            exclude_id: excludeId
-        });
-
+        const params = new URLSearchParams({ date: date, lab_id: labId, exclude_id: excludeId });
         return fetch(`/schedules/check-conflicts?${params.toString()}`, {
-            headers: { 'Accept': 'application/json' }
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         })
         .then(resp => resp.ok ? resp.json() : [])
         .catch(() => []);
     }
-
-   function updateStartTimeOptions() {
-    const date = document.getElementById('schedule-date').value;
-    const labId = document.getElementById('lab-id-select').value;
-    const startTimeSelect = document.getElementById('start-time-select');
-
-    if (!date || !labId) return;
-
-    // Fetch occupied slots from backend (queries both schedules + bookings with proper recurring logic)
-    fetch(`/schedules/check-occupied-slots?date=${date}&laboratory_id=${labId}`)
-        .then(res => res.json())
-        .then(occupiedSlots => {
-            const currentValue = startTimeSelect.value; // preserve current selection if possible
-            startTimeSelect.innerHTML = '<option value="">Select Time</option>';
-            
-            // Build all time options from 08:00 to 17:00
-            for (let h = 8; h <= 17; h++) {
-                const time = (h < 10 ? '0' : '') + h + ':00';
-                const opt = document.createElement('option');
-                opt.value = time;
-                opt.textContent = time;
-                
-                // Check if this hour slot falls within any occupied range
-                const isOccupied = occupiedSlots.some(slot => {
-                    // slot.start_time and slot.end_time are "HH:mm" format
-                    return time >= slot.start_time && time < slot.end_time;
-                });
-                
-                if (isOccupied) {
-                    opt.disabled = true;
-                    opt.classList.add('disabled-slot');
-                    opt.textContent = time + ' (occupied)';
-                }
-                
-                if (time === currentValue && !isOccupied) {
-                    opt.selected = true;
-                }
-                
-                startTimeSelect.appendChild(opt);
-            }
-        })
-        .catch(() => {
-            // Fallback: just reload available slots
-            fetch(`/schedules/get-available-time-slots?date=${date}&laboratory_id=${labId}`)
-                .then(res => res.json())
-                .then(availableSlots => {
-                    startTimeSelect.innerHTML = '<option value="">Select Time</option>';
-                    availableSlots.forEach(time => {
-                        const opt = document.createElement('option');
-                        opt.value = time;
-                        opt.textContent = time;
-                        startTimeSelect.appendChild(opt);
-                    });
-                });
-        });
-}
 
     // ========== 动态控制不同模式字段显示/隐藏 ==========
     function handleFormFormattingBasedOnType() {
@@ -452,25 +506,19 @@ function initializeTimeOptions() {
 
             if (recurringCheckbox) recurringCheckbox.checked = false;
 
-            // All-Day Maintenance: lock times to 08:00-18:00 and visually disable time selectors
             if (allDayCheckbox && allDayCheckbox.checked) {
                 startSelect.value = "08:00";
                 endSelect.value = "18:00";
                 if (endHidden) endHidden.value = "18:00";
 
-                // Remove HTML5 required constraint — values are auto-filled by JS, not user selection
                 startSelect.required = false;
                 endSelect.required = false;
                 
                 startSelect.classList.add('readonly-select-override');
                 endSelect.classList.add('readonly-select-override');
             } else {
-                // Manual maintenance: reset times and re-enable for user selection
-                startSelect.value = '';
-                endSelect.value = '';
-                if (endHidden) endHidden.value = '';
-
-                // Restore required so normal form validation applies
+                // 🎯 关键修复：不再暴力清空用户已选的时间值，避免 DOM 死锁
+                // 仅在初始进入 maintenance 模式或值无效时才复位（空值保护由表单的 required 属性保证）
                 startSelect.required = true;
                 endSelect.required = true;
                 
@@ -482,7 +530,6 @@ function initializeTimeOptions() {
                 };
             }
         } else {
-            // Non-maintenance type: fully reset all-day state and re-enable time selects
             if (allDayCheckbox) allDayCheckbox.checked = false;
             if (startSelect) {
                 startSelect.value = '';
@@ -500,51 +547,44 @@ function initializeTimeOptions() {
     }
 
     // ========== AJAX 错误控制（绝不改变DOM，不破坏排版） ==========
-   function clearFieldErrors() {
-    // 移除所有输入框的红框高亮
-    document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-    
-    // 强行把页面里所有零散的、会导致排版崩塌的报错文本碎片全部删掉
-    document.querySelectorAll('.text-danger, [id^="error-"]').forEach(el => {
-        if(el.tagName === 'SPAN' || el.tagName === 'SMALL' || el.textContent.includes('invalid')) {
-            el.remove();
-        }
-    });
-
-    // 隐藏顶部错误框
-    const topBox = document.getElementById('top-error-alert');
-    const topList = document.getElementById('top-error-list');
-    if (topBox) topBox.style.display = 'none';
-    if (topList) topList.innerHTML = '';
-}
-
-function displayFieldErrors(errors) {
-    const topBox = document.getElementById('top-error-alert');
-    const topList = document.getElementById('top-error-list');
-    
-    if (topBox && topList) {
-        topBox.style.display = 'block';
-        topList.innerHTML = ''; 
-
-        // 遍历后端传过来的所有验证错误
-        Object.keys(errors).forEach(field => {
-            errors[field].forEach(msg => {
-                const li = document.createElement('li');
-                // 完美的将 "all_day: The selected all day is invalid" 塞进顶部红框
-                li.innerHTML = `<strong>${field.replace('_', ' ').toUpperCase()}:</strong> ${msg}`;
-                topList.appendChild(li);
-            });
+    function clearFieldErrors() {
+        document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+        
+        document.querySelectorAll('.text-danger, [id^="error-"]').forEach(el => {
+            if(el.tagName === 'SPAN' || el.tagName === 'SMALL' || el.textContent.includes('invalid')) {
+                el.remove();
+            }
         });
+
+        const topBox = document.getElementById('top-error-alert');
+        const topList = document.getElementById('top-error-list');
+        if (topBox) topBox.style.display = 'none';
+        if (topList) topList.innerHTML = '';
     }
-    // 平滑滚动回顶部让导师/你清晰看到错误
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+
+    function displayFieldErrors(errors) {
+        const topBox = document.getElementById('top-error-alert');
+        const topList = document.getElementById('top-error-list');
+        
+        if (topBox && topList) {
+            topBox.style.display = 'block';
+            topList.innerHTML = ''; 
+
+            Object.keys(errors).forEach(field => {
+                errors[field].forEach(msg => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${field.replace('_', ' ').toUpperCase()}:</strong> ${msg}`;
+                    topList.appendChild(li);
+                });
+            });
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
     function handleAjaxFormSubmit(event) {
         event.preventDefault();
         clearFieldErrors();
 
-        // Submit safeguard: if all-day is checked, ensure required is off so HTML5 validator doesn't block
         const allDayCheckbox = document.getElementById('all-day-checkbox');
         const startSelect = document.getElementById('start-time-select');
         const endSelect = document.getElementById('end-time-select');
@@ -580,7 +620,6 @@ function displayFieldErrors(errors) {
             return resp.json();
         })
         .then(data => {
-            // 🚀 【核心修复点】保存成功后不再刷新当前页，直接跳转回 schedules 列表页
             window.location.href = '/schedules';
         })
         .catch(err => {
@@ -598,6 +637,47 @@ function displayFieldErrors(errors) {
         });
     }
 
+    // ========== DATE CONSTRAINTS: 动态锁定日历上下限 ==========
+    function updateDateConstraints() {
+        const typeSelect = document.getElementById('schedule-type-select');
+        const semesterSelect = document.getElementById('semester-id-select');
+        const dateInput = document.getElementById('schedule-date');
+
+        if (!typeSelect || !dateInput) return;
+
+        const currentType = typeSelect.value;
+
+        // 🚀【修复漏洞 1】如果是 Booking 或 Maintenance 模式，卡死今天以前的日期不能选
+        if (currentType === 'booking' || currentType === 'maintenance') {
+            dateInput.min = new Date().toISOString().split('T')[0];
+            if (currentType !== 'enroll') {
+                dateInput.removeAttribute('max');
+            }
+        // 🚀【修复漏洞 2】如果是 Enroll 模式，根据所选学期的合法时间轴自动切割日历上下限限制
+        } else if (currentType === 'enroll') {
+            dateInput.removeAttribute('min');
+            if (semesterSelect && semesterSelect.value) {
+                const selectedOption = semesterSelect.options[semesterSelect.selectedIndex];
+                const startDate = selectedOption.getAttribute('data-start-date');
+                const endDate = selectedOption.getAttribute('data-end-date');
+                if (startDate) dateInput.min = startDate;
+                if (endDate) dateInput.max = endDate;
+
+                if (dateInput.value) {
+                    if ((startDate && dateInput.value < startDate) || (endDate && dateInput.value > endDate)) {
+                        alert('⚠️ The currently selected date falls outside the new semester boundary. The date field has been cleared.');
+                        dateInput.value = '';
+                        updateScheduleDay();
+                        updateStartTimeOptions();
+                    }
+                }
+            }
+        } else {
+            dateInput.removeAttribute('min');
+            dateInput.removeAttribute('max');
+        }
+    }
+
     // ========== INITIALIZATION ==========
     document.addEventListener('DOMContentLoaded', function () {
         initializeTimeOptions();
@@ -605,12 +685,14 @@ function displayFieldErrors(errors) {
         updateScheduleDay();
         handleFormFormattingBasedOnType();
         updateStartTimeOptions();
+        updateDateConstraints();
 
         const typeSelect = document.getElementById('schedule-type-select');
         const dateInput = document.getElementById('schedule-date');
         const labSelect = document.getElementById('lab-id-select');
         const courseSelect = document.getElementById('course-select');
         const startSelect = document.getElementById('start-time-select');
+        const semesterSelect = document.getElementById('semester-id-select');
         const allDayCheckbox = document.getElementById('all-day-checkbox');
         const form = document.getElementById('add-schedule-form');
         const closeAlertBtn = document.getElementById('close-error-alert');
@@ -619,21 +701,38 @@ function displayFieldErrors(errors) {
             typeSelect.addEventListener('change', function() {
                 handleFormFormattingBasedOnType();
                 updateStartTimeOptions();
+                updateDateConstraints();
             });
         }
         
+        if (semesterSelect) {
+            semesterSelect.addEventListener('change', function() {
+                updateDateConstraints();
+                updateStartTimeOptions();
+            });
+        }
+
         if (dateInput) dateInput.addEventListener('change', function () { updateScheduleDay(); updateStartTimeOptions(); });
         if (labSelect) labSelect.addEventListener('change', updateStartTimeOptions);
-        if(document.getElementById('schedule-date').value && document.getElementById('lab-id-select').value) {
-        updateStartTimeOptions();
-    }
+        
+        if (dateInput && dateInput.value && labSelect && labSelect.value) {
+            updateStartTimeOptions();
+        }
+
         if (courseSelect) {
             courseSelect.addEventListener('change', function () { 
                 updateStartTimeOptions(); 
                 handleFormFormattingBasedOnType(); 
             });
         }
-        if (startSelect) startSelect.addEventListener('change', handleFormFormattingBasedOnType);
+
+        // 🚀【新增关键监听】当用户改变开始时间时，立刻触发布局重组，让非法的结束时间即时变灰
+        if (startSelect) {
+            startSelect.addEventListener('change', function() {
+                handleFormFormattingBasedOnType();
+                updateStartTimeOptions();
+            });
+        }
         
         if (allDayCheckbox) {
             allDayCheckbox.addEventListener('change', function() {
@@ -641,6 +740,7 @@ function displayFieldErrors(errors) {
                 updateStartTimeOptions();
             });
         }
+
         if (closeAlertBtn) {
             closeAlertBtn.addEventListener('click', function() {
                 document.getElementById('top-error-alert').style.display = 'none';
