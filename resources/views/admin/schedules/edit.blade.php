@@ -159,9 +159,12 @@
 <form id="delete-schedule-form" action="{{ url('/schedules/' . $schedule->id) }}" method="POST" style="display: none;">
     @csrf
     @method('DELETE')
-    <input type="hidden" name="return_lab_id" value="{{ request('lab_id', $schedule->lab_id) }}">
-    <input type="hidden" name="return_semester_id" value="{{ request('semester_id', $schedule->semester_id) }}">
-    <input type="hidden" name="return_date" value="{{ request('date', $schedule->date) }}">
+    {{-- 护送参数：供 destroy() 智能重定向回主课表页面 --}}
+    <input type="hidden" name="redirect_date" value="{{ $schedule->date }}">
+    <input type="hidden" name="redirect_lab_id" value="{{ $schedule->lab_id }}">
+    @if(request('view_target'))
+        <input type="hidden" name="view_target" value="{{ request('view_target') }}">
+    @endif
 </form>
 
 @push('styles')

@@ -7,10 +7,12 @@
 @push('styles')
 <style>
     /* Compact schedule table styles inspired by the prototype */
-    .schedule-matrix {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
+    /* 🌟 核心修复1：给主课表大表格穿上铁甲，强制等宽，绝不纵容自适应拉伸 */
+    .schedule-matrix,
+    .weekly-schedule-matrix table {
+        table-layout: fixed !important;
+        width: 100% !important;
+        border-collapse: collapse !important;
     }
     .schedule-matrix th, 
     .schedule-matrix td {
@@ -29,14 +31,23 @@
     .schedule-matrix td {
         height: 40px;
         background-color: #ffffff;
+        word-break: break-word !important;
+        overflow: hidden !important;
     }
+    /* 🌟 核心修复2：精准划分每一列的绝对地盘 */
     .schedule-matrix .time-col {
         background-color: #f4f6f9;
         font-weight: bold;
         text-align: center;
         vertical-align: middle;
-        width: 75px;
+        width: 80px !important;  /* 给时间轴一列稳固的物理宽度 */
+        min-width: 80px !important;
+        max-width: 80px !important;
         font-size: 0.75rem;
+    }
+    /* 剩下的 7 天（Mo, Tu, We, Th, Fr, Sa, Su）绝对等宽死卡死 */
+    .schedule-matrix th:not(.time-col) {
+        width: calc((100% - 80px) / 7) !important;
     }
     
     .schedule-block {
@@ -51,6 +62,9 @@
         height: 100%;
         position: relative;
         overflow: hidden;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
     }
     .schedule-block strong {
         display: block;
@@ -59,13 +73,15 @@
         margin-bottom: 1px;
         overflow: hidden;
         text-overflow: ellipsis;
-        
+        white-space: normal;
+        word-break: break-word;
     }
     .schedule-block span {
         display: block;
         color: #555;
         font-size: 0.65rem;
-        white-space: nowrap;
+        white-space: normal;
+        word-break: break-word;
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -281,7 +297,7 @@
                 </div>
             </div>
             
-            <div class="card-body p-0 table-responsive">
+            <div class="card-body p-0" style="overflow-x: hidden !important;">
                 <table class="schedule-matrix m-0">
                     <thead>
                         <tr>
@@ -504,7 +520,16 @@
                             {{ $mStart }}@if($mEnd) - {{ $mEnd }}@endif
                         </span>
                         @if(!empty($slot['schedule_id']))
-                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="text-primary font-weight-bold">Edit</a>
+                            <div class="d-flex align-items-center mt-1">
+                                <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-outline-primary mr-2 py-0 px-1">Edit</a>
+                                <form action="{{ url('/schedules/' . $slot['schedule_id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this maintenance? This will clear it from both schedule and booking logs.');" style="display:inline;">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                                        <i class="fas fa-trash-alt"></i> Delete
+                                    </button>
+                                </form>
+                            </div>
                         @endif
                     </div>
                 @endif

@@ -182,8 +182,18 @@ class ScheduleController extends Controller
                         $timetable[$start][$day]['rowspan'] = $blocks;
                         $timetable[$start][$day]['schedule_id'] = $sched->id; // 💡 塞入原裝 Schedule ID 給前端生成 Edit 按鈕
                         
-                        // 如果是課程，存儲整個 schedule 模型；如果是預訂，存儲其關聯的 booking 模型
-                        $timetable[$start][$day]['data'] = ($realType === 'enroll') ? $sched : $sched->booking;
+                        // 如果是課程，存儲整個 schedule 模型；如果是預訂/維護，存儲其關聯的 booking 模型
+                        // 🎯 幽灵数据防御：如果关联的 booking 已被从 /bookings 删除，注入安全兜底对象防止 Blade 崩溃
+                        if ($realType !== 'enroll' && is_null($sched->booking)) {
+                            $timetable[$start][$day]['data'] = (object) [
+                                'purpose'    => 'Lab Maintenance (Orphaned)',
+                                'booker_name'=> 'System',
+                                'start_time' => $sched->start_time,
+                                'end_time'   => $sched->end_time,
+                            ];
+                        } else {
+                            $timetable[$start][$day]['data'] = ($realType === 'enroll') ? $sched : $sched->booking;
+                        }
 
                         for ($i = 1; $i < $blocks; $i++) {
                             $nextTime = $startCarbon->copy()->addMinutes(60 * $i)->format('H:i');
@@ -1072,25 +1082,39 @@ public function getAvailableTimeSlots(Request $request)
    
    public function destroy(Request $request, Schedule $schedule)
     {
+        // 🎯 即使 booking 已经被别人在 /bookings 页面删过了（幽灵状态），也要安全清理
         if (!empty($schedule->booking_id)) {
             $linkedBooking = \App\Models\Booking::find($schedule->booking_id);
-        
             if ($linkedBooking) {
-              
-                if (!empty($linkedBooking->booking_request_id)) {
-                    \App\Models\BookingRequest::where('id', $linkedBooking->booking_request_id)->delete();
-                }
-                
-                // 彻底抹去 bookings 表里的本体
                 $linkedBooking->delete();
             }
+            // 如果 Booking 已是幽灵（find 返回 null），跳过，直接删 Schedule 本身
         }
+
+        // 暂存我们需要带回去的过滤器参数（优先从请求中拿，没有就从小模型里推导作兜底）
+        $date  = $request->input('redirect_date', $schedule->date);
+        $labId = $request->input('redirect_lab_id', $schedule->lab_id);
 
         $schedule->delete();
 
-        $queryParams = $request->query();
+        // 🎯 核心修复：聪明地构建重定向 URL，不再无脑 back() 炸出 404
+        $queryParams = [];
+        if (!empty($date)) {
+            $queryParams['date'] = $date;
+        }
 
-        return redirect()->to(url('/schedules?' . http_build_query($queryParams)))
-                        ->with('status', 'Schedule and its underlying record deleted successfully.');
+        // 构造 view_target，完美恢复用户之前选好的机房过滤器
+        if (!empty($labId)) {
+            $queryParams['view_target'] = 'lab_' . $labId;
+        } elseif ($request->has('view_target')) {
+            $queryParams['view_target'] = $request->input('view_target');
+        }
+
+        if (!empty($queryParams)) {
+            return redirect()->to('/schedules?' . http_build_query($queryParams))
+                             ->with('success', 'Maintenance completely removed.');
+        }
+
+        return redirect()->to('/schedules')->with('success', 'Maintenance completely removed.');
     }
 }
