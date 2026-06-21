@@ -316,19 +316,29 @@ function updateStartTimeOptions() {
         const courseSelect = document.getElementById('course-select');
         const startSelect = document.getElementById('start-time-select');
         const endSelect = document.getElementById('end-time-select');
+        // 获取当前的排班类型（enroll / maintenance / booking）
+        const scheduleTypeInput = document.getElementById('schedule-type');
+        const scheduleType = scheduleTypeInput ? scheduleTypeInput.value : 'enroll';
 
-        if (!endSelect || !startSelect || !courseSelect) return;
+        if (!endSelect || !startSelect) return;
 
-        const hours = parseInt(courseSelect.dataset.hours || '1', 10);
-        const startTime = startSelect.value;
-        if (!startTime) return;
+        // 🎯 核心修复：只有正规排课 (enroll) 模式才锁死结束时间
+        if (scheduleType === 'enroll') {
+            if (!courseSelect) return;
+            const hours = parseInt(courseSelect.dataset.hours || '1', 10);
+            const startTime = startSelect.value;
+            if (!startTime) return;
+            
+            const startMin = parseTimeToMinutes(startTime);
+            const endMin = Math.min(18 * 60, startMin + hours * 60);
+            const endTime = minutesToTime(endMin);
 
-        const startMin = parseTimeToMinutes(startTime);
-        const endMin = Math.min(18 * 60, startMin + hours * 60);
-        const endTime = minutesToTime(endMin);
-
-        endSelect.value = endTime;
-        endSelect.disabled = true;
+            endSelect.value = endTime;
+            endSelect.disabled = true; // 课程模式下，老老实实锁死
+        } else {
+            // 🎯 核心修复：如果是临时维护或散客预订，彻底解放下拉框，允许用户选别的结束时间！
+            endSelect.disabled = false;
+        }
     }
 
     // ========== FORM SUBMISSION ==========
