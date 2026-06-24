@@ -13,6 +13,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\SemesterController;
 use App\Http\Controllers\SoftwareController;
+use App\Http\Controllers\SoftwareRequestController;
 use App\Http\Controllers\LoginController;
 use Illuminate\Support\Facades\Route;
 
@@ -119,6 +120,15 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:1,3,4'])->group(function () {
         // Technical Fault Escalation Tracking System Actions
         Route::delete('/reports/{report}', [ReportController::class, 'destroy']);
+    });
+
+
+    // ── SOFTWARE REQUEST MANAGEMENT HUB (Role 1, 2, 3, 4 — Full Access) ──
+    Route::middleware(['role:1,2,3,4'])->group(function () {
+        // Software Request CRUD + Approval Workflow
+        Route::resource('software-requests', SoftwareRequestController::class);
+        Route::post('software-requests/{id}/approve', [SoftwareRequestController::class, 'approve'])->name('software-requests.approve');
+        Route::post('software-requests/{id}/reject', [SoftwareRequestController::class, 'reject'])->name('software-requests.reject');
     });
 
 

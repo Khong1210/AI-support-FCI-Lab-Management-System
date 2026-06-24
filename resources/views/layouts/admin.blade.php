@@ -326,7 +326,7 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/software') }}" class="nav-link {{ request()->is('software*') ? 'active' : '' }}">
+                    <a href="{{ url('/software') }}" class="nav-link {{ request()->is('software') && !request()->is('software/*') ? 'active' : (request()->is('software/edit*') || request()->is('software/add*') || request()->is('software/create*') ? 'active' : '') }}">
                         <div class="nav-icon-box"><i class="fas fa-cube"></i></div>
                         <p>Software</p>
                     </a>
@@ -382,8 +382,32 @@
                     </a>
                 </li>
 
+                {{-- Software Requests & Approvals --}}
+                <li class="nav-item">
+                    <a href="{{ route('software-requests.create') }}" class="nav-link {{ request()->is('software-requests/create') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-paper-plane"></i></div>
+                        <p>Software Request</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ route('software-requests.index') }}" class="nav-link {{ request()->is('software-requests') && !request()->is('software-requests/create') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-clipboard-check"></i></div>
+                        <p>
+                            Software Approval
+                            @php
+                                $pendingSwCount = \App\Models\SoftwareRequest::where('status', 1)->count();
+                            @endphp
+                            @if($pendingSwCount > 0)
+                                <span style="background:#ef4444; color:#fff; border-radius:999px; font-size:10px; padding:1px 7px; margin-left:6px; font-weight:700;">
+                                    {{ $pendingSwCount }}
+                                </span>
+                            @endif
+                        </p>
+                    </a>
+                </li>
+
                 <li class="custom-sidebar-divider" data-title="Reports & Analytics">Reports & Analytics</li>
-               <li class="nav-item">
+                <li class="nav-item">
                     <a href="{{ url('/reports') }}" class="nav-link {{ request()->is('reports*') ? 'active' : '' }}">
                         <div class="nav-icon-box" style="position: relative;">
                         <i class="fas fa-file-pdf"></i></div>
@@ -442,8 +466,8 @@
                 </li>
                 <li class="nav-item">
                     <a href="{{ url('/schedules') }}" class="nav-link {{ request()->is('schedules*') ? 'active' : '' }}">
-                        <div class="nav-icon-box"><i class="fas fa-clock"></i></div>
-                        <p>Schedules</p>
+                        <div class="nav-icon-box"><i class="fas fa-magic"></i></div>
+                        <p>AI Schedule</p>
                     </a>
                 </li>
                 <li class="nav-item">
