@@ -4,8 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Software;
 use App\Models\SoftwareRequest;
+use App\Models\Laboratory;
 use Illuminate\Http\Request;
-
+use Illuminate\Support\Facades\Auth;
 class SoftwareRequestController extends Controller
 {
     /**
@@ -13,11 +14,11 @@ class SoftwareRequestController extends Controller
      */
     public function index()
     {
-        $requests = SoftwareRequest::with(['user', 'software'])
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $requests = SoftwareRequest::with(['user', 'software'])->get();
 
-        return view('admin.software-requests.index', compact('requests'));
+        $labs = Laboratory::all();
+
+        return view('admin.software-requests.index', compact('requests', 'labs'));
     }
 
     /**
@@ -30,28 +31,26 @@ class SoftwareRequestController extends Controller
         return view('admin.software-requests.create', compact('existingSoftware'));
     }
 
-    /**
-     * Store a newly created software request.
-     */
-    public function store(Request $request)
-    {
-        $data = $request->validate([
-            'software_name' => 'required|string|max:255',
-            'version'       => 'nullable|string|max:100',
-            'software_id'   => 'nullable|integer|exists:software,id',
-        ]);
+   public function store(Request $request)
+{
+    $data = $request->validate([
+        'software_name' => 'required|string|max:70',
+        'version'       => 'nullable|string|max:20',
+    ]);
 
-        SoftwareRequest::create([
-            'user_id'     => auth()->id(),
-            'software_id' => $data['software_id'] ?? null,
-            'version'     => $data['software_name']
-                . ($data['version'] ? ' v' . $data['version'] : ''),
-            'status'      => SoftwareRequest::STATUS_PENDING,
-        ]);
+    // 🎯 完美打包：用 " @v" 将名字和版本拼在一起，存入唯一能用的 version 字段
+    $packedString = $data['software_name'] . ($data['version'] ? ' @v' . $data['version'] : '');
 
-        return redirect()->route('software-requests.index')
-            ->with('success', 'Software request submitted successfully!');
-    }
+    SoftwareRequest::create([
+        'user_id'     => Auth::id(),
+        'software_id' => 0, // 🌟 塞入我们建好的 0 号占位符，防止 NOT NULL 报错
+        'version'     => substr($packedString, 0, 255), // 确保不冲破字段长度
+        'status'      => SoftwareRequest::STATUS_PENDING,
+    ]);
+
+    return redirect()->route('software-requests.index')
+        ->with('success', 'Software request submitted successfully!');
+}
 
     /**
      * Display the specified resource.
@@ -78,29 +77,45 @@ class SoftwareRequestController extends Controller
     /**
      * ───  APPROVE: Shadow data → real inventory (one-click pipeline)  ───
      */
-    public function approve(string $id)
+  public function approve(Request $request, string $id) // 🎯 记得注入 Request
     {
-        $softwareRequest = SoftwareRequest::findOrFail($id);
-
-        // 1. Extract software name from the stored version string
-        $softwareName = $softwareRequest->version ?: 'Untitled Software';
-
-        // 2. Create a new Software record in the real inventory
-        $newSoftware = Software::create([
-            'software_name' => $softwareName,
-            'version'       => 'Latest',
-            'lab_id'        => 1,
-            'status'        => 1,
+        // 验证传过来的机房 ID 是否合法
+        $request->validate([
+            'lab_id' => 'required|exists:laboratories,id'
         ]);
 
-        // 3. Bind the request to the newly created software & mark Approved
+        $softwareRequest = SoftwareRequest::findOrFail($id);
+
+        if ($softwareRequest->status !== SoftwareRequest::STATUS_PENDING) {
+            return redirect()->route('software-requests.index')
+                ->with('error', 'This request has already been processed.');
+        }
+
+        $rawString = $softwareRequest->version ?: 'Untitled Software';
+        $softwareName = $rawString;
+        $softwareVersion = 'Latest';
+
+        if (str_contains($rawString, ' @v')) {
+            $parts = explode(' @v', $rawString);
+            $softwareName = $parts[0];
+            $softwareVersion = $parts[1] ?? 'Latest';
+        }
+
+        $newSoftware = Software::create([
+            'lab_id'        => $request->input('lab_id'), // 🎯 动态读取前端选中的实验室 ID
+            'software_name' => $softwareName,
+            'version'       => $softwareVersion,
+            'expiry_date'   => '2030-12-31', 
+            'status'        => 1,    
+        ]);
+
         $softwareRequest->update([
             'software_id' => $newSoftware->id,
             'status'      => SoftwareRequest::STATUS_APPROVED,
         ]);
 
         return redirect()->route('software-requests.index')
-            ->with('success', 'Request approved! "' . $softwareName . '" has been added to inventory.');
+            ->with('success', 'Request approved! "' . $softwareName . '" added to selected Lab inventory.');
     }
 
     /**

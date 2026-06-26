@@ -467,6 +467,12 @@
                 <li class="nav-item">
                     <a href="{{ url('/schedules') }}" class="nav-link {{ request()->is('schedules*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-magic"></i></div>
+                        <p>Schedule</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url('/ai-scheduler') }}" class="nav-link {{ request()->is('ai-scheduler*') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-magic"></i></div>
                         <p>AI Schedule</p>
                     </a>
                 </li>

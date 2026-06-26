@@ -27,45 +27,75 @@
                         <th>Requester</th>
                         <th>Software</th>
                         <th>Status</th>
+                        <th>Allocated Lab</th>
                         <th>Submitted</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($requests as $req)
+                    @if($req->status == 1)
+                        <form id="approve-form-{{ $req->id }}" action="{{ route('software-requests.approve', $req->id) }}" method="POST" class="d-none">
+                            @csrf
+                        </form>
+                    @endif
+
                     <tr>
-                        <td>{{ $req->software_request_id }}</td>
+                        <td>{{ $req->id }}</td>
                         <td>
                             <div class="fw-semibold">{{ $req->user->name ?? 'N/A' }}</div>
                             <small class="text-muted">{{ $req->user->email ?? '' }}</small>
                         </td>
                         <td>
-                            @if($req->software)
+                            @if($req->software && $req->software_id !== 0)
                                 <span class="badge bg-info">{{ $req->software->software_name }}</span>
                             @else
                                 <span class="text-muted">{{ $req->version }}</span>
                             @endif
                         </td>
                         <td>
-                            @if($req->isPending())
+                            @if($req->status == 1)
                                 <span class="badge bg-warning text-dark">Pending</span>
-                            @elseif($req->isApproved())
+                            @elseif($req->status == 2)
                                 <span class="badge bg-success">Approved</span>
-                            @elseif($req->isRejected())
+                            @elseif($req->status == 3)
                                 <span class="badge bg-danger">Rejected</span>
                             @endif
                         </td>
+
+                        {{-- 🎯 2. 核心改动：新增这一列机房显示/选择 --}}
+                        <td>
+                            @if($req->status == 1)
+                                {{-- 未审批：显示 Dropdown，并指定属于上面对应的表单 form attribute --}}
+                                <select name="lab_id" form="approve-form-{{ $req->id }}" class="form-select form-select-sm" style="max-width: 180px;" required>
+                                    <option value="" disabled selected>Select Lab...</option>
+                                    @foreach($labs as $lab)
+                                        <option value="{{ $lab->id }}">{{ $lab->lab_name }}</option>
+                                    @endforeach
+                                </select>
+                            @elseif($req->status == 2 && $req->software)
+                                {{-- 已审批：直接通过关系链读取真实的机房名字 --}}
+                                <span class="fw-semibold text-dark">
+                                    <i class="fas fa-door-open text-secondary mr-1"></i>
+                                    {{ $req->software->laboratory->lab_name ?? 'Lab ' . $req->software->lab_id }}
+                                </span>
+                            @else
+                                {{-- 拒绝或其他情况 --}}
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+
                         <td><small>{{ $req->created_at->format('d M Y, h:i A') }}</small></td>
                         <td>
-                            <div class="d-flex justify-content-center gap-1">
-                                @if($req->isPending())
-                                    <form action="{{ route('software-requests.approve', $req->software_request_id) }}" method="POST" class="d-inline">
-                                        @csrf
-                                        <button class="btn btn-sm btn-success" title="Approve & Add to Inventory">
-                                            <i class="fas fa-check"></i> Approve
-                                        </button>
-                                    </form>
-                                    <form action="{{ route('software-requests.reject', $req->software_request_id) }}" method="POST" class="d-inline">
+                            <div class="d-flex justify-content-center align-items-center gap-1">
+                                @if($req->status == 1)
+                                    {{-- 🎯 3. Approve 按钮：点击时直接触发对应的表单 --}}
+                                    <button type="submit" form="approve-form-{{ $req->id }}" class="btn btn-sm btn-success" title="Approve & Add to Inventory">
+                                        <i class="fas fa-check"></i> Approve
+                                    </button>
+
+                                    {{-- Reject 按钮 --}}
+                                    <form action="{{ route('software-requests.reject', $req->id) }}" method="POST" class="d-inline">
                                         @csrf
                                         <button class="btn btn-sm btn-danger" title="Reject">
                                             <i class="fas fa-times"></i> Reject
@@ -75,7 +105,8 @@
                                     <span class="text-muted" style="font-size: 12px;">— No actions —</span>
                                 @endif
 
-                                <form action="{{ route('software-requests.destroy', $req->software_request_id) }}" method="POST" class="d-inline delete-form">
+                                {{-- Delete 按钮 --}}
+                                <form action="{{ route('software-requests.destroy', $req->id) }}" method="POST" class="d-inline delete-form">
                                     @csrf
                                     @method('DELETE')
                                     <button class="btn btn-sm btn-outline-secondary" title="Delete">
