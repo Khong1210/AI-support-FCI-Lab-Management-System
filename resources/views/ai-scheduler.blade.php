@@ -322,7 +322,7 @@
 
     resetSemesterBtn.addEventListener('click', function() {
         if (schedulingQueue.length > 0) {
-            if (!confirm('⚠️ Resetting will clear all queued courses. Continue?')) {
+            if (!confirm(' Resetting will clear all queued courses. Continue?')) {
                 return;
             }
         }
@@ -981,20 +981,20 @@ ${compiledRequirementsText}`;
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`🎉 Successfully Anchored into Active Timeline!\n\nReal Calculated Date: ${result.message}\nDatabase Row ID: ${result.schedule_id}\nRoom: ${labName}`);
+                    alert(` Successfully Anchored into Active Timeline!\n\nReal Calculated Date: ${result.message}\nDatabase Row ID: ${result.schedule_id}\nRoom: ${labName}`);
                     const tableRow = bookBtn.closest('tr');
                     tableRow.style.transition = "all 0.4s ease";
                     tableRow.style.opacity = "0.4";
                     bookBtn.className = "btn btn-sm btn-secondary";
                     bookBtn.innerHTML = `<i class="fas fa-check-circle"></i> Committed`;
                 } else {
-                    alert(`❌ Save Failed: ${result.message}`);
+                    alert(` Save Failed: ${result.message}`);
                     bookBtn.disabled = false;
                     bookBtn.innerHTML = `Enroll/Book Row`;
                 }
             } catch (err) {
                 console.error(err);
-                alert("⚠️ System Registry Error or route disconnected.");
+                alert(" System Registry Error or route disconnected.");
                 bookBtn.disabled = false;
                 bookBtn.innerHTML = `Enroll/Book Row`;
             }
