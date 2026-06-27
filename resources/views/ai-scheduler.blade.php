@@ -48,30 +48,44 @@
     .step-indicator.completed {
         background: #28a745;
     }
+    .step-container-block {
+        background: #fff;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #dee2e6;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        margin-bottom: 0.75rem;
+    }
+    .solid-select {
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        font-size: 0.875rem;
+        border: 2px solid #ced4da;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
 </style>
 
 <meta name="csrf-token" content="{{ csrf_token() }}">
-
 <div class="container-fluid px-3">
     <div class="row">
-        <div class="col-xl-5 col-lg-12 mb-4">
+        <div class="col-xl-4 col-lg-12 mb-4">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center py-2">
                     <div>
                         <i class="fas fa-sliders-h me-2"></i> Configure Course Requirements (6-Step Workflow)
                     </div>
                 </div>
-                <div class="card-body bg-light p-4">
-                    <form id="queueConfigForm" onsubmit="event.preventDefault();">
+                <div class="card-body bg-light p-3"> <form id="queueConfigForm" onsubmit="event.preventDefault();">
                         
-                        <!-- STEP 1: Semester Selection (Auto-Locks on Select) -->
-                        <div class="mb-4 step-container" id="step1">
-                            <label class="form-label fw-bold text-dark">
+                        <div class="step-container-block" id="step1">
+                            <label class="form-label fw-bold text-dark small">
                                 <span class="step-indicator active">1</span>
                                 Select Semester/Trimester:
                             </label>
                             <div class="d-flex gap-2">
-                                <select id="semester_selector" class="form-select form-select-lg border-2">
+                                <select id="semester_selector" class="form-select solid-select shadow-sm">
                                     <option value="" selected>-- Choose Semester --</option>
                                     @if(isset($semesters) && $semesters->count() > 0)
                                         @foreach($semesters as $sem)
@@ -85,97 +99,94 @@
                                         <option value="3" data-start-date="2027-01-04">Trimester #3</option>
                                     @endif
                                 </select>
-                                <button type="button" id="resetSemesterBtn" class="btn btn-warning btn-lg" style="display:none;">
+                                <button type="button" id="resetSemesterBtn" class="btn btn-warning" style="display:none;">
                                     <i class="fas fa-redo"></i> Reset
                                 </button>
                             </div>
-                            <small class="text-muted">Semester auto-locks on selection. Use Reset to change.</small>
+                            <small class="text-muted" style="font-size: 0.75rem;">Semester auto-locks on selection. Use Reset to change.</small>
                         </div>
 
-                        <!-- STEP 2: Course Selection -->
-                        <div class="mb-4 step-container step-locked" id="step2">
-                            <label for="ai_course_id" class="form-label fw-bold text-dark">
+                        <div class="step-container-block step-locked" id="step2">
+                            <label for="ai_course_id" class="form-label fw-bold text-dark small">
                                 <span class="step-indicator">2</span>
                                 Select Target Course:
                             </label>
-                            <select id="ai_course_id" class="form-select form-select-lg border-2" disabled>
+                            <select id="ai_course_id" class="form-select solid-select shadow-sm" disabled>
                                 <option value="">-- Choose Course --</option>
                                 @foreach($courses as $course)
                                     <option value="{{ $course->id }}" 
                                             data-name="{{ $course->course_name }}"
                                             data-lecturer-id="{{ $course->lecturer_id ?? '' }}"
                                             data-lecturer-name="{{ $course->lecturer_name ?? 'Unassigned' }}">
-                                        {{ $course->course_code ?? 'CRK' }} - {{ $course->course_name }}&nbsp;(Lecturer: {{ $course->lecturer_name ?? 'N/A' }})
+                                        {{ $course->course_code ?? 'CRK' }} - {{ $course->course_name }}
                                     </option>
                                 @endforeach
                             </select>
                         </div>
 
-                        <!-- STEP 3: Resource Category Selection -->
-                        <div class="mb-4 step-container step-locked" id="step3">
-                            <label class="form-label fw-bold text-dark">
+                        <div class="step-container-block step-locked" id="step3">
+                            <label class="form-label fw-bold text-dark small">
                                 <span class="step-indicator">3</span>
                                 Select Primary Resource Focus:
                             </label>
                             <div class="row g-2">
                                 <div class="col-4">
                                     <input type="radio" class="form-check-input d-none" name="core_constraint_type" id="radio_software" value="software" disabled>
-                                    <label class="card custom-card-radio p-3 text-center rounded h-100" for="radio_software">
-                                        <i class="fas fa-code text-primary mb-2 fa-lg"></i>
-                                        <span class="small fw-bold d-block">Software</span>
+                                    <label class="card custom-card-radio p-2 text-center rounded h-100" for="radio_software" style="cursor: pointer;">
+                                        <i class="fas fa-code text-primary mb-1"></i>
+                                        <span style="font-size: 0.75rem;" class="fw-bold d-block">Software</span>
                                     </label>
                                 </div>
                                 <div class="col-4">
                                     <input type="radio" class="form-check-input d-none" name="core_constraint_type" id="radio_hardware" value="hardware" disabled>
-                                    <label class="card custom-card-radio p-3 text-center rounded h-100" for="radio_hardware">
-                                        <i class="fas fa-tools text-warning mb-2 fa-lg"></i>
-                                        <span class="small fw-bold d-block">Hardware</span>
+                                    <label class="card custom-card-radio p-2 text-center rounded h-100" for="radio_hardware" style="cursor: pointer;">
+                                        <i class="fas fa-tools text-warning mb-1"></i>
+                                        <span style="font-size: 0.75rem;" class="fw-bold d-block">Hardware</span>
                                     </label>
                                 </div>
                                 <div class="col-4">
                                     <input type="radio" class="form-check-input d-none" name="core_constraint_type" id="radio_laboratory" value="laboratory" disabled>
-                                    <label class="card custom-card-radio p-3 text-center rounded h-100" for="radio_laboratory">
-                                        <i class="fas fa-door-open text-success mb-2 fa-lg"></i>
-                                        <span class="small fw-bold d-block">Laboratory</span>
+                                    <label class="card custom-card-radio p-2 text-center rounded h-100" for="radio_laboratory" style="cursor: pointer;">
+                                        <i class="fas fa-door-open text-success mb-1"></i>
+                                        <span style="font-size: 0.75rem;" class="fw-bold d-block">Lab</span>
                                     </label>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- STEP 4: Specific Resource Selection -->
-                        <div class="mb-4 step-container step-locked" id="step4">
-                            <label class="form-label fw-bold text-dark">
+                        <div class="step-container-block step-locked" id="step4">
+                            <label class="form-label fw-bold text-dark small">
                                 <span class="step-indicator">4</span>
                                 Select Specific Resource:
                             </label>
-                            <div class="p-3 bg-white border rounded">
+                            <div class="p-2 bg-white border rounded">
                                 <div class="constraint-select-wrapper" id="wrapper_software">
-                                    <label class="form-label text-muted small fw-bold">Required Software Module:</label>
-                                    <select id="ai_software_name" class="form-select" disabled>
+                                    <label class="form-label text-muted small fw-bold" style="font-size: 0.7rem;">Required Software Module:</label>
+                                    <select id="ai_software_name" class="form-select solid-select shadow-sm" disabled>
                                         <option value="">-- Select Software --</option>
                                         @foreach($softwares->unique('software_name') as $sw)
-                                            <option value="{{ $sw->software_name }}">{{ $sw->software_name }} ({{ $sw->lab_room }})</option>
+                                            <option value="{{ $sw->software_name }}">{{ $sw->software_name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
 
                                 <div class="constraint-select-wrapper d-none" id="wrapper_hardware">
-                                    <label class="form-label text-muted small fw-bold">Required Hardware Unit:</label>
-                                    <select id="ai_equipment_name" class="form-select" disabled>
+                                    <label class="form-label text-muted small fw-bold" style="font-size: 0.7rem;">Required Hardware Unit:</label>
+                                    <select id="ai_equipment_name" class="form-select solid-select shadow-sm" disabled>
                                         <option value="">-- Select Hardware/Equipment --</option>
                                         @foreach($equipments->unique('equipment_name') as $eq)
-                                            <option value="{{ $eq->equipment_name }}">{{ $eq->equipment_name }} ({{ $eq->lab_room }})</option>
+                                            <option value="{{ $eq->equipment_name }}">{{ $eq->equipment_name }}</option>
                                         @endforeach
                                     </select>
                                 </div>
 
                                 <div class="constraint-select-wrapper d-none" id="wrapper_laboratory">
-                                    <label class="form-label text-muted small fw-bold">Target Lab Destination:</label>
-                                    <select id="ai_lab_id" class="form-select" disabled>
+                                    <label class="form-label text-muted small fw-bold" style="font-size: 0.7rem;">Target Lab Destination:</label>
+                                    <select id="ai_lab_id" class="form-select solid-select shadow-sm" disabled>
                                         <option value="">-- Select Laboratory --</option>
                                         @foreach($laboratories as $lab)
                                             <option value="{{ $lab->id }}" data-name="{{ $lab->lab_name }}">
-                                                {{ $lab->lab_name }} (Cap: {{ $lab->capacity ?? '30' }})
+                                                {{ $lab->lab_name }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -183,28 +194,25 @@
                             </div>
                         </div>
 
-                        <!-- STEP 5: Time Preference -->
-                        <div class="mb-4 step-container step-locked" id="step5">
-                            <label for="ai_time_preference" class="form-label fw-bold text-dark">
+                        <div class="step-container-block step-locked" id="step5">
+                            <label for="ai_time_preference" class="form-label fw-bold text-dark small">
                                 <span class="step-indicator">5</span>
                                 Preferred Schedule Shift:
                             </label>
-                            <select id="ai_time_preference" class="form-select" disabled>
+                            <select id="ai_time_preference" class="form-select solid-select shadow-sm" disabled>
                                 <option value="full_day" selected>Full Day</option>
                                 <option value="morning">Morning</option>
                                 <option value="afternoon">Afternoon</option>
                             </select>
-                            <small class="text-muted">Optional: leave as "Full Day" for any valid slot.</small>
                         </div>
 
-                        <!-- STEP 6: Add to Queue -->
-                        <div class="mb-2 step-container step-locked" id="step6">
-                            <label class="form-label fw-bold text-dark">
+                        <div class="step-container-block step-locked" id="step6">
+                            <label class="form-label fw-bold text-dark small d-block">
                                 <span class="step-indicator">6</span>
                                 Add to Scheduling Queue:
                             </label>
-                            <button type="button" id="addToQueueButton" class="btn btn-dark btn-lg w-100 fw-bold shadow-sm" disabled>
-                                <i class="fas fa-plus-circle me-2 text-info"></i> Add Course to Scheduling Queue
+                            <button type="button" id="addToQueueButton" class="btn btn-dark w-100 fw-bold shadow-sm" disabled>
+                                <i class="fas fa-plus-circle me-2 text-info"></i> Add to Queue
                             </button>
                         </div>
                     </form>
@@ -212,7 +220,7 @@
             </div>
         </div>
 
-        <div class="col-xl-7 col-lg-12">
+        <div class="col-xl-8 col-lg-12">
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-secondary text-white fw-bold d-flex justify-content-between align-items-center">
                     <span><i class="fas fa-list-ol me-2"></i> Current Pending Queue</span>
@@ -223,11 +231,11 @@
                         <table class="table table-hover align-middle mb-0 text-center">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Step Index</th>
+                                    <th style="width: 120px;">Step Index</th>
                                     <th class="text-start">Course Title</th>
                                     <th>Core Rule Constraint</th>
                                     <th>Shift Prefer</th>
-                                    <th>Action</th>
+                                    <th style="width: 100px;">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="queueTableBody">
@@ -505,13 +513,13 @@
         queueTableBody.innerHTML = schedulingQueue.map((item, index) => {
             return `
                 <tr>
-                    <td><span class="badge bg-dark rounded-circle queue-badge">Step ${index + 1}</span></td>
+                    <td class="fw-bold text-dark">Step ${index + 1}</td>
                     <td class="text-start fw-semibold text-primary">${item.courseName}</td>
-                    <td><span class="badge bg-secondary">${item.constraintLabel}</span></td>
-                    <td><span class="badge bg-info text-dark text-capitalize">${item.timePreference}</span></td>
+                    <td class="small text-muted">${item.constraintLabel}</td>
+                    <td class="text-capitalize small">${item.timePreference}</td>
                     <td>
                         <button class="btn btn-sm btn-outline-danger delete-queue-btn" data-index="${index}">
-                            <i class="fas fa-trash-alt"></i> Delete
+                            <i class="fas fa-trash-alt"></i>
                         </button>
                     </td>
                 </tr>
