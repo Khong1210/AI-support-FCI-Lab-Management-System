@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - FCI Lab Management System</title>
+    <title>Forgot Password - FCI Lab Management System</title>
     {{-- Bootstrap 5 CDN --}}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     {{-- Font Awesome --}}
@@ -73,58 +73,53 @@
     <div class="login-card">
         <div class="login-header">
             <div class="logo-icon">
-                <i class="fas fa-flask"></i>
+                <i class="fas fa-unlock-alt"></i>
             </div>
-            <h4 class="mb-0 fw-bold">FCI Lab Management</h4>
-            <p class="mb-0 text-white-50 small">Sign in to your account</p>
+            <h4 class="mb-0 fw-bold">Forgot Password</h4>
+            <p class="mb-0 text-white-50 small">Verify your identity to reset</p>
         </div>
-        
-        <div class="login-body">
-            @if(session('status'))
-                <div class="alert alert-success" style="font-size: 0.85rem; padding: 0.75rem;">
-                    <i class="fas fa-check-circle me-1"></i> {{ session('status') }}
-                </div>
-            @endif
 
-            @if($errors->any())
+        <div class="login-body">
+            @if ($errors->any())
                 <div class="alert alert-danger" style="font-size: 0.85rem; padding: 0.75rem;">
                     <ul class="mb-0 ps-3">
-                        @foreach($errors->all() as $error)
+                        @foreach ($errors->all() as $error)
                             <li>{{ $error }}</li>
                         @endforeach
                     </ul>
                 </div>
             @endif
 
-            <form action="{{ route('login.post') }}" method="POST">
+            <form action="{{ route('password.forgot.post') }}" method="POST">
                 @csrf
                 <div class="mb-3">
-                    <label class="form-label fw-semibold text-muted small">Email Address</label>
+                    <label class="form-label fw-semibold text-muted small">Username</label>
                     <div class="input-group">
-                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-envelope text-muted"></i></span>
-                        <input type="email" name="email" class="form-control border-start-0 ps-0" value="{{ old('email') }}" required autofocus placeholder="name@example.com">
+                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-user text-muted"></i></span>
+                        <input type="text" name="username" class="form-control border-start-0 ps-0" value="{{ old('username') }}" required autofocus placeholder="Enter your username">
                     </div>
                 </div>
 
                 <div class="mb-4">
-                    <label class="form-label fw-semibold text-muted small">Password</label>
+                    <label class="form-label fw-semibold text-muted small">Email Address</label>
                     <div class="input-group">
-                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-lock text-muted"></i></span>
-                        <input type="password" name="password" class="form-control border-start-0 ps-0" required placeholder="••••••••">
+                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-envelope text-muted"></i></span>
+                        <input type="email" name="email" class="form-control border-start-0 ps-0" value="{{ old('email') }}" required placeholder="name@example.com">
                     </div>
                 </div>
 
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <a href="{{ route('password.forgot') }}" class="text-decoration-none small text-muted">
-                        Forgot Password?
+                <button type="submit" class="btn btn-login mb-3">
+                    <i class="fas fa-redo-alt me-2"></i> Reset Password
+                </button>
+
+                <div class="text-center">
+                    <a href="{{ route('login') }}" class="text-decoration-none small text-muted">
+                        <i class="fas fa-arrow-left me-1"></i> Back to Login
                     </a>
                 </div>
-
-                <button type="submit" class="btn btn-login">
-                    <i class="fas fa-sign-in-alt me-2"></i> Sign In
-                </button>
             </form>
         </div>
     </div>
 
 </body>
+</html>

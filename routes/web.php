@@ -28,6 +28,10 @@ Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'authenticate'])->name('login.post');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+// Forgot Password (public)
+Route::get('/password/forgot', [LoginController::class, 'showForgotPasswordForm'])->name('password.forgot');
+Route::post('/password/forgot', [LoginController::class, 'forgotPassword'])->name('password.forgot.post');
+
 
 // =========================================================================
 // ── AUTHENTICATED PANEL ROUTING (GLOBAL ENCLOSURE) ──
@@ -37,6 +41,10 @@ Route::middleware(['auth'])->group(function () {
     // Common Landing Dashboards accessible by all logged-in accounts
     Route::get('/admin', [AdminController::class, 'dashboard']);
     Route::get('/management/mail', [MailController::class, 'index']);
+
+    // Renew / Change Password (authenticated)
+    Route::get('/password/renew', [LoginController::class, 'showRenewPasswordForm'])->name('password.renew');
+    Route::post('/password/update', [LoginController::class, 'updatePassword'])->name('password.update');
 
 
     // ── MASTER PRIVILEGE ISOLATION (Strictly Role 1 - Supreme Authority Only) ──

@@ -72,13 +72,11 @@
                             </label>
                             <div class="d-flex gap-2">
                                 <select id="semester_selector" class="form-select form-select-lg border-2">
-                                    <option value="">-- Choose Semester --</option>
+                                    <option value="" selected>-- Choose Semester --</option>
                                     @if(isset($semesters) && $semesters->count() > 0)
                                         @foreach($semesters as $sem)
-                                            <option value="{{ $sem->id }}" 
-                                                    data-start-date="{{ $sem->start_date }}"
-                                                    {{ ($currentSemesterId ?? 1) == $sem->id ? 'selected' : '' }}>
-                                                Trimester #{{ $sem->id }} 
+                                            <option value="{{ $sem->id }}" data-start-date="{{ $sem->start_date }}">
+                                                Trimester #{{ $sem->id }}
                                             </option>
                                         @endforeach
                                     @else
@@ -103,8 +101,11 @@
                             <select id="ai_course_id" class="form-select form-select-lg border-2" disabled>
                                 <option value="">-- Choose Course --</option>
                                 @foreach($courses as $course)
-                                    <option value="{{ $course->id }}" data-name="{{ $course->course_name }}">
-                                        {{ $course->course_code ?? 'CRK' }} - {{ $course->course_name }}
+                                    <option value="{{ $course->id }}" 
+                                            data-name="{{ $course->course_name }}"
+                                            data-lecturer-id="{{ $course->lecturer_id ?? '' }}"
+                                            data-lecturer-name="{{ $course->lecturer_name ?? 'Unassigned' }}">
+                                        {{ $course->course_code ?? 'CRK' }} - {{ $course->course_name }}&nbsp;(Lecturer: {{ $course->lecturer_name ?? 'N/A' }})
                                     </option>
                                 @endforeach
                             </select>
@@ -303,6 +304,11 @@
             // Enable Step 2
             enableStep('step2');
             document.getElementById('ai_course_id').disabled = false;
+        } else {
+            // Value is empty (e.g. triggered by Reset) — release Step 1 lock
+            workflowState.step1Locked = false;
+            document.querySelector('#step1 .step-indicator').classList.remove('completed');
+            document.querySelector('#step1 .step-indicator').classList.add('active');
         }
     });
 
@@ -313,7 +319,7 @@
             }
         }
         
-        // Reset workflow
+        // Reset workflow state
         workflowState = {
             step1Locked: false,
             step2Complete: false,
@@ -325,12 +331,21 @@
         schedulingQueue = [];
         renderQueueTable();
         
-        // Unlock semester
-        semesterSelector.disabled = false;
+
+        semesterSelector.querySelectorAll('option').forEach(opt => {
+            opt.removeAttribute('selected');
+            opt.selected = false;
+        });
         semesterSelector.value = "";
+        semesterSelector.selectedIndex = 0;
+        semesterSelector.disabled = false;
         resetSemesterBtn.style.display = 'none';
         
-        // Reset all step indicators
+        // Dispatch native 'change' so the workflow state machine
+        // reacts to the now-empty value and releases Step 1 lock
+        semesterSelector.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // Reset all step indicators: restore step1 as active, all others neutral
         document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
             indicator.classList.remove('completed', 'active');
             if (index === 0) indicator.classList.add('active');
@@ -343,7 +358,7 @@
         disableStep('step5');
         disableStep('step6');
         
-        // Disable all inputs
+        // Disable all downstream inputs
         document.getElementById('ai_course_id').disabled = true;
         document.querySelectorAll('input[name="core_constraint_type"]').forEach(r => r.disabled = true);
         document.getElementById('ai_software_name').disabled = true;
@@ -543,9 +558,16 @@
 
         const timePreference = document.getElementById('ai_time_preference').value;
 
+        // Capture lecturer data from the course <option> for AI Layer-2 collision detection
+        const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+        const lecturerId   = selectedOption?.getAttribute('data-lecturer-id') || '';
+        const lecturerName = selectedOption?.getAttribute('data-lecturer-name') || 'Unassigned';
+
         schedulingQueue.push({
             courseId: selectedCourseId,
             courseName: selectedCourseName,
+            lecturerId: lecturerId,
+            lecturerName: lecturerName,
             constraintType: constraintType,
             constraintValue: constraintValue,
             constraintLabel: constraintLabel,
@@ -638,49 +660,19 @@
             const compiledRequirementsText = schedulingQueue.map((item, idx) => {
                 return `Course Requirement Demand Block #${idx + 1}:
                 - Course Name: "${item.courseName}" (Database ID: ${item.courseId})
+                - Assigned Lecturer: ${item.lecturerName} (Lecturer ID: ${item.lecturerId})
                 - Target Asset Condition Rule: [Type: ${item.constraintType}, Target Value: "${item.constraintValue}"]
                 - Target Time Slot Interval Strategy: ${item.timePreference}`;
             }).join('\n\n');
 
-            // 🤖 Industrial-grade anti-collision prompt
-            const totalGlobalContext = `
-                You are the Core Alchemical Timetable Optimizer for an FCI Lab Management System.
-                Your single most critical mandate is: ZERO COLLISION LIMIT for Semester ID: ${currentSemesterId}. 
-                
-                [THE TASK]
-                You must schedule the following requested courses SIMULTANEOUSLY for Semester ID ${currentSemesterId}:
-                ${compiledRequirementsText}
-                
-                [CORE SYSTEM REGISTRY DATA (CLEANED EXCLUSIVELY FOR CURRENT SEMESTER)]
-                1. Pre-existing Booked Timetables (DO NOT COLLIDE HERE): ${JSON.stringify(schedules)}
-                2. Available Laboratories: ${JSON.stringify(laboratories)}
-                3. Laboratory Softwares: ${JSON.stringify(softwares)}
-                4. Laboratory Equipments: ${JSON.stringify(equipments)}
-                5. Registered Faculty Lecturers: ${JSON.stringify(lecturers)}
+            // Frontend sends ONLY the raw course demand list.
+            // All scheduling rules, existing timetable data, lab/lecturer mappings,
+            // and collision constraints are handled EXCLUSIVELY by the backend System Prompt
+            // to prevent stale-data interference and contradictory rule sets from confusing the AI.
+            const totalGlobalContext = `SEMESTER_ID: ${currentSemesterId}
 
-                [CRITICAL DE-COLLISION ALGORITHMIC RULES]
-                Rule 1: ROOM COLLISION OVERLAP - Never allocate two courses to the same 'lab_name' on the same Day and Time Window.
-                Rule 2: LECTURER COLLISION OVERLAP - Never schedule the same lecturer to teach two different classes at the same time.
-                Rule 3: INTERNAL QUEUE COLLISION - The courses inside the requested batch MUST NOT collide with each other. As you place Course #1, Course #2 must adapt and find a different free slot or a different free room.
-                Rule 4: STRICT TIME WINDOWS - Only use standard 2-hour slots from Monday to Friday:
-                  - Morning Shifts: "08:00 AM - 10:00 AM", "10:00 AM - 12:00 PM"
-                  - Afternoon Shifts: "02:00 PM - 04:00 PM", "04:00 PM - 06:00 PM"
-                Rule 5: SHIFT FILTER - Respect the "timePreference" field for each course. If it says "morning", only use Morning Shifts. If "afternoon", only use Afternoon Shifts. If "anytime", lookup any valid slot.
-
-                [MANDATORY OUTPUT JSON FORMAT]
-                Return a valid JSON array ONLY. Do NOT wrap your answer inside \`\`\`json or markdown ticks. No conversational prose.
-                Output Structure example:
-                [
-                  {
-                    "course_id": "1",
-                    "course_name": "Programming Fundamentals",
-                    "lab_name": "Networking Lab",
-                    "time_slot": "Monday 08:00 AM - 10:00 AM",
-                    "verification": "Passed: Softwares Matched",
-                    "log": "Verified: Zero room/lecturer collision with existing schedules."
-                  }
-                ]
-            `;
+[COURSE REQUIREMENT DEMAND BLOCKS]
+${compiledRequirementsText}`;
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 120000);
@@ -711,51 +703,139 @@
             renderResultTable(optimizedSlots, "AI Concurrent De-Collision Matrix Generated", "success");
 
         } catch (error) {
-            console.warn("⚠️ Switching to Secure Smart Local Solver...", error);
-            
-            // Local fallback anti-collision engine
+            console.warn("DeepSeek API unavailable – activating intelligent local fallback engine.", error);
+            // ========================================================
+            // INTELLIGENT LOCAL FALLBACK ANTI-COLLISION ENGINE
+            // Runs when DeepSeek API is unreachable, out of quota, or
+            // returns malformed data. Uses existing schedules data plus
+            // software/equipment/lab mappings to generate conflict-free slots.
+            // ========================================================
             const fallbackSlots = [];
-            const availableDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-            const morningSlots = ["08:00 AM - 10:00 AM", "10:00 AM - 12:00 PM"];
-            const afternoonSlots = ["02:00 PM - 04:00 PM", "04:00 PM - 06:00 PM"];
+            const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+            const allTimeSlots = [
+                { label: "08:00 AM - 10:00 AM", start: "08:00:00", end: "10:00:00", shift: "morning" },
+                { label: "10:00 AM - 12:00 PM", start: "10:00:00", end: "12:00:00", shift: "morning" },
+                { label: "02:00 PM - 04:00 PM", start: "14:00:00", end: "16:00:00", shift: "afternoon" },
+                { label: "04:00 PM - 06:00 PM", start: "16:00:00", end: "18:00:00", shift: "afternoon" }
+            ];
 
-            schedulingQueue.forEach((queueItem, index) => {
-                let assignedLab = "General Laboratory Matrix";
-                let targetLabId = 1;
-
-                if (laboratories && laboratories.length > 0) {
-                    let matchedLab = laboratories.find(l => {
-                        if (queueItem.constraintType === 'laboratory') return l.lab_name === queueItem.constraintValue;
-                        return true;
-                    });
-                    assignedLab = matchedLab ? matchedLab.lab_name : laboratories[index % laboratories.length].lab_name;
-                    targetLabId = matchedLab ? matchedLab.id : laboratories[index % laboratories.length].id;
-                }
-
-                let targetDay = availableDays[index % availableDays.length]; 
-                let targetTimeWindow = "";
-
-                if (queueItem.timePreference === 'morning') {
-                    targetTimeWindow = morningSlots[index % morningSlots.length];
-                } else if (queueItem.timePreference === 'afternoon') {
-                    targetTimeWindow = afternoonSlots[index % afternoonSlots.length];
-                } else {
-                    // 'full_day' or 'anytime' or any other value = full day availability
-                    targetTimeWindow = index % 2 === 0 ? morningSlots[0] : afternoonSlots[0];
-                }
-
-                fallbackSlots.push({
-                    course_id: queueItem.courseId,
-                    course_name: queueItem.courseName,
-                    lab_id: targetLabId,
-                    lab_name: assignedLab,
-                    time_slot: `${targetDay} ${targetTimeWindow}`,
-                    verification: "✓ Cleared (Local Heuristic Shield Checked)",
-                    log: `Successfully isolated on ${targetDay} to prevent execution queue overlap.`
+            // ── Helper: check if a (lab, day, start, end) conflicts with existing schedules ──
+            function hasConflict(labName, day, slotStart, slotEnd) {
+                return schedules.some(s => {
+                    if (s.laboratory_name !== labName) return false;
+                    if (s.day_of_week !== day) return false;
+                    return slotStart < s.end_time && slotEnd > s.start_time;
                 });
+            }
+
+            // ── Helper: check if a lab has the required asset ──
+            function labHasAsset(labName, constraintType, constraintValue) {
+                if (constraintType === 'software') {
+                    return softwares.some(sw => sw.software_name === constraintValue && sw.lab_room === labName);
+                }
+                if (constraintType === 'hardware') {
+                    return equipments.some(eq => eq.equipment_name === constraintValue && eq.lab_room === labName);
+                }
+                // Fixed lab: must match exactly
+                if (constraintType === 'laboratory') return labName === constraintValue;
+                return true;
+            }
+
+            // Track assignments within this batch to prevent internal queue collisions
+            const batchAssignments = [];
+
+            schedulingQueue.forEach((queueItem) => {
+                let assigned = null;
+                const preferredShift = queueItem.timePreference;
+
+                // Filter labs by asset requirement
+                const eligibleLabs = laboratories.filter(l =>
+                    labHasAsset(l.lab_name, queueItem.constraintType, queueItem.constraintValue)
+                );
+
+                // If no eligible labs found, fallback to all labs with warning
+                const labsToTry = eligibleLabs.length > 0 ? eligibleLabs : laboratories;
+
+                // Filter time slots by shift preference
+                const slotsToTry = preferredShift === 'morning'
+                    ? allTimeSlots.filter(ts => ts.shift === 'morning')
+                    : preferredShift === 'afternoon'
+                        ? allTimeSlots.filter(ts => ts.shift === 'afternoon')
+                        : allTimeSlots;
+
+                // Sequential search: day → lab → slot, skip conflicts
+                searchLoop:
+                for (const day of dayNames) {
+                    for (const lab of labsToTry) {
+                        for (const ts of slotsToTry) {
+                            // Check against existing DB schedules
+                            if (hasConflict(lab.lab_name, day, ts.start, ts.end)) continue;
+                            // Check against already-assigned batch entries
+                            const batchConflict = batchAssignments.some(ba =>
+                                ba.lab_name === lab.lab_name &&
+                                ba.day === day &&
+                                ts.start < ba.end && ts.end > ba.start
+                            );
+                            if (batchConflict) continue;
+                            // Also check lecturer conflicts within batch
+                            const lecturerConflict = batchAssignments.some(ba =>
+                                ba.lecturerId && queueItem.lecturerId &&
+                                ba.lecturerId === queueItem.lecturerId &&
+                                ba.day === day &&
+                                ts.start < ba.end && ts.end > ba.start
+                            );
+                            if (lecturerConflict) continue;
+
+                            assigned = {
+                                course_id: queueItem.courseId,
+                                course_name: queueItem.courseName,
+                                lab_id: lab.id,
+                                lab_name: lab.lab_name,
+                                day: day,
+                                time_slot: `${day} ${ts.label}`,
+                                verification: eligibleLabs.length > 0
+                                    ? "✓ Fallback Engine — Asset Verified"
+                                    : "⚠ Fallback Engine — Asset Unmatched (no eligible lab)",
+                                log: `Local heuristic assigned ${day} ${ts.label} at ${lab.lab_name}`
+                            };
+                            batchAssignments.push({
+                                lab_name: lab.lab_name,
+                                day: day,
+                                start: ts.start,
+                                end: ts.end,
+                                lecturerId: queueItem.lecturerId
+                            });
+                            break searchLoop;
+                        }
+                    }
+                }
+
+                // Absolute fallback if no slot found at all
+                if (!assigned) {
+                    assigned = {
+                        course_id: queueItem.courseId,
+                        course_name: queueItem.courseName,
+                        lab_id: null,
+                        lab_name: "No Available Slot",
+                        time_slot: "Unassignable",
+                        verification: "✗ All slots exhausted or conflicting",
+                        log: "Local engine could not find a non-colliding slot."
+                    };
+                }
+
+                fallbackSlots.push(assigned);
             });
 
-            renderResultTable(fallbackSlots, "Local Anti-Collision Engine Matrix Triggered (Fail-safe)", "warning");
+            renderResultTable(fallbackSlots, "Intelligent Local Anti-Collision Engine (AI Unavailable)", "warning");
+            // Insert a notice banner above the result table
+            const noticeBanner = document.createElement('div');
+            noticeBanner.className = 'alert alert-warning alert-dismissible fade show mb-3';
+            noticeBanner.innerHTML = `
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Notice:</strong> DeepSeek AI is currently unavailable. Results were generated by the built-in anti-collision fallback engine and may not be optimally distributed. Please review before enrolling.
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            responseContainer.insertBefore(noticeBanner, responseContainer.firstChild);
         } finally {
             analyzeButton.disabled = false;
         }
@@ -787,28 +867,45 @@
         `;
 
         slotsArray.forEach((slot, idx) => {
-            let matchedLabId = slot.lab_id;
-            if(!matchedLabId && laboratories.length > 0) {
-                matchedLabId = laboratories.find(l => l.lab_name === slot.lab_name)?.id ?? laboratories[0].id;
+            // Resolve lab_id from lab_name in case the AI only sent the name
+            let resolvedLabId = slot.lab_id;
+            if (!resolvedLabId && laboratories.length > 0) {
+                resolvedLabId = laboratories.find(l => l.lab_name === slot.lab_name)?.id ?? null;
             }
+            // Fallback: if the queue knows this course, use its original lab constraint lab_id
+            if (!resolvedLabId) {
+                const queueEntry = schedulingQueue.find(q => q.courseId == slot.course_id);
+                if (queueEntry && queueEntry.constraintType === 'laboratory') {
+                    const labMatch = laboratories.find(l => l.lab_name === queueEntry.constraintValue);
+                    if (labMatch) resolvedLabId = labMatch.id;
+                }
+            }
+
+            // AI outputs "time_window" now; construct the full display slot from day_of_week + time_window
+            const displaySlot = slot.time_window
+                ? (slot.day_of_week ? `${slot.day_of_week} ${slot.time_window}` : slot.time_window)
+                : (slot.time_slot || 'N/A');
+
+            // AI outputs "conflict_log"; fallback to "verification" or "log" for backward compat
+            const conflictInfo = slot.conflict_log || slot.verification || slot.log || 'N/A';
 
             tableHtml += `
                 <tr>
                     <td>
                         <button class="btn btn-sm btn-success use-slot-btn" 
-                                data-course-id="${slot.course_id}" 
-                                data-lab-id="${matchedLabId}" 
-                                data-lab-name="${slot.lab_name}" 
-                                data-slot="${slot.time_slot}">
+                                data-course-id="${slot.course_id || ''}" 
+                                data-lab-id="${resolvedLabId || ''}" 
+                                data-lab-name="${slot.lab_name || ''}" 
+                                data-slot="${displaySlot}">
                             <i class="fas fa-calendar-check me-1"></i> Enroll/Book Row
                         </button>
                     </td>
                     <td><span class="badge bg-secondary">${idx + 1}</span></td>
-                    <td class="text-start fw-bold text-dark">${slot.course_name}</td>
-                    <td><span class="badge bg-primary">${slot.lab_name}</span></td>
-                    <td class="text-success fw-semibold">${slot.time_slot}</td>
-                    <td><span class="text-muted small">${slot.verification}</span></td>
-                    <td><span class="badge bg-light text-success">${slot.log}</span></td>
+                    <td class="text-start fw-bold text-dark">${slot.course_name || 'N/A'}</td>
+                    <td><span class="badge bg-primary">${slot.lab_name || 'N/A'}</span></td>
+                    <td class="text-success fw-semibold">${displaySlot}</td>
+                    <td><span class="text-muted small">${conflictInfo}</span></td>
+                    <td><span class="badge bg-light text-success">${conflictInfo}</span></td>
                 </tr>
             `;
         });

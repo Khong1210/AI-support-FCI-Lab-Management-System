@@ -505,7 +505,7 @@
             <div class="footer-divider"></div>
             
             <div class="footer-btns">
-                <a href="#" class="footer-btn" title="Settings">
+                <a href="{{ route('password.renew') }}" class="footer-btn" title="Settings">
                     <i class="fas fa-cog"></i>
                     <span>Settings</span>
                 </a>
