@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Laboratory;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -59,6 +60,47 @@ class BookingController extends Controller
             'start_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/'],
             'end_time' => ['required', 'regex:/^(0[8-9]|1[0-8]):00$/', 'after:start_time'],
         ]);
+
+        // ─── Schedule Conflict Detection ─────────────────────────────────
+        // Blocks overlapping times for the same lab room.
+        // Condition: existing_start_time < input_end_time AND
+        //            existing_end_time > input_start_time
+        $labId          = $request->input('lab_id');
+        $date           = $request->input('date');
+        $newStartTime   = $request->input('start_time') . ':00';
+        $newEndTime     = $request->input('end_time') . ':00';
+        $dayOfWeek      = \Carbon\Carbon::parse($date)->format('l');
+
+        // 1. Check Schedules table (recurring + date-specific)
+        $scheduleConflict = Schedule::where('lab_id', $labId)
+            ->where(function ($q) use ($dayOfWeek, $date) {
+                $q->where(function ($sub) use ($dayOfWeek) {
+                    $sub->where('is_recurring', true)
+                         ->where('day_of_week', $dayOfWeek);
+                })->orWhere(function ($sub) use ($date) {
+                    $sub->where('is_recurring', false)
+                         ->where('date', $date);
+                });
+            })
+            ->where('start_time', '<', $newEndTime)
+            ->where('end_time', '>', $newStartTime)
+            ->exists();
+
+        if ($scheduleConflict) {
+            return redirect()->back()->with('error', 'Time slot conflict detected.')->withInput();
+        }
+
+        // 2. Check Bookings table (date-specific)
+        $bookingConflict = Booking::where('lab_id', $labId)
+            ->where('date', $date)
+            ->where('start_time', '<', $newEndTime)
+            ->where('end_time', '>', $newStartTime)
+            ->exists();
+
+        if ($bookingConflict) {
+            return redirect()->back()->with('error', 'Time slot conflict detected.')->withInput();
+        }
+        // ─── End Conflict Detection ──────────────────────────────────────
 
         Booking::create([
             'user_id' => $request->input('user_id'),

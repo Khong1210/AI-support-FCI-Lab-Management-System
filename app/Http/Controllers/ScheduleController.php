@@ -394,42 +394,115 @@ class ScheduleController extends Controller
         return view('admin.schedules.create', compact('laboratories', 'courses', 'semesters', 'technicians'));
     }
 
-    protected function hasScheduleConflict(int $labId, int $semesterId, string $date, string $newStartTime, string $newEndTime, ?int $excludeScheduleId = null): bool
-{
-    // 1. 取得目標日期的星期幾 (例如 'Monday')
-    $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
+    /**
+     * Unified scheduler conflict-detection function — single source of truth.
+     *
+     * Checks for lab-room overlap (same semester, same day, overlapping time range)
+     * against the schedules table.
+     *
+     * Interval overlap formula (strict < / > allows exactly-touching slots):
+     *   existing.start_time < newEndTime AND existing.end_time > newStartTime
+     *
+     * @param int         $labId           Laboratory ID
+     * @param int         $semesterId      Semester ID
+     * @param string      $dayOfWeek       Day name, e.g. "Monday"
+     * @param string      $newStartTime    Start time in H:i:s format
+     * @param string      $newEndTime      End time in H:i:s format
+     * @param int|null    $excludeScheduleId  Optional schedule ID to exclude (for updates)
+     * @param array       $inMemorySlots   Optional in-memory accumulator of slots already
+     *                                     accepted in the current batch, each as
+     *                                     ['lab_id','day_of_week','start_time','end_time']
+     * @return bool                        True if a conflict exists
+     */
+    public static function hasScheduleConflict(
+        int $labId,
+        int $semesterId,
+        string $dayOfWeek,
+        string $newStartTime,
+        string $newEndTime,
+        ?int $excludeScheduleId = null,
+        array $inMemorySlots = []
+    ): bool
+    {
+        // ── A. Check in-memory batch accumulator first ──
+        foreach ($inMemorySlots as $slot) {
+            if (
+                (int) $slot['lab_id'] === $labId
+                && $slot['day_of_week'] === $dayOfWeek
+                && $slot['start_time'] < $newEndTime
+                && $slot['end_time'] > $newStartTime
+            ) {
+                return true;
+            }
+        }
 
-    // 2. 建立防撞查詢：我們只關心「同一間實驗室」且「同一個學期」的情況
-    $query = \App\Models\Schedule::where('lab_id', $labId)
-        ->where('semester_id', $semesterId);
+        // ── B. Query the database ──
+        $query = \App\Models\Schedule::where('lab_id', $labId)
+            ->where('semester_id', $semesterId)
+            ->where('day_of_week', $dayOfWeek);
 
-    // 3. 如果是 Edit（編輯模式），要把自己排除掉，否則自己會跟自己撞期
-    if ($excludeScheduleId) {
-        $query->where('id', '!=', $excludeScheduleId);
+        if ($excludeScheduleId) {
+            $query->where('id', '!=', $excludeScheduleId);
+        }
+
+        $query->where('start_time', '<', $newEndTime)
+              ->where('end_time', '>', $newStartTime);
+
+        return $query->exists();
     }
 
-    // 4. 【核心混合模型防撞核心】：
-    // 只要滿足以下任一時間重疊條件，就代表衝突了：
-    $query->where(function ($q) use ($dayOfWeek, $date) {
-        $q->where(function ($sub) use ($dayOfWeek) {
-            // 狀況 A：它是一堂每週重複的課，且星期幾跟目標日期相同
-            $sub->where('is_recurring', true)
-                ->where('day_of_week', $dayOfWeek);
-        })->orWhere(function ($sub) use ($date) {
-            // 狀況 B：它是一堂單次事件/課，且日期跟目標日期完全一模一樣
-            $sub->where('is_recurring', false)
-                ->where('date', $date);
-        });
-    });
+    /**
+     * Unified lecturer-collision detection.
+     *
+     * Checks whether a lecturer is already scheduled on a given day + semester
+     * during an overlapping time window.
+     *
+     * @param int       $lecturerUserId   The lecturer's user ID (courses.user_id)
+     * @param int       $semesterId       Semester ID
+     * @param string    $dayOfWeek        Day name, e.g. "Monday"
+     * @param string    $newStartTime     Start time in H:i:s format
+     * @param string    $newEndTime       End time in H:i:s format
+     * @param int|null  $excludeScheduleId
+     * @param array     $inMemorySlots    In-memory batch accumulator (each must also
+     *                                    have 'lecturer_user_id' key)
+     * @return bool
+     */
+    public static function hasLecturerConflict(
+        int $lecturerUserId,
+        int $semesterId,
+        string $dayOfWeek,
+        string $newStartTime,
+        string $newEndTime,
+        ?int $excludeScheduleId = null,
+        array $inMemorySlots = []
+    ): bool
+    {
+        // ── A. In-memory batch check ──
+        foreach ($inMemorySlots as $slot) {
+            if (
+                ((int)($slot['lecturer_user_id'] ?? 0)) === $lecturerUserId
+                && $slot['day_of_week'] === $dayOfWeek
+                && $slot['start_time'] < $newEndTime
+                && $slot['end_time'] > $newStartTime
+            ) {
+                return true;
+            }
+        }
 
-    // 5. 拿出所有可能撞期的課
-    $schedules = $query->get();
+        // ── B. Database query ──
+        $query = \App\Models\Schedule::where('schedules.semester_id', $semesterId)
+            ->where('schedules.day_of_week', $dayOfWeek)
+            ->where('schedules.start_time', '<', $newEndTime)
+            ->where('schedules.end_time', '>', $newStartTime)
+            ->join('courses', 'schedules.course_id', '=', 'courses.id')
+            ->where('courses.user_id', $lecturerUserId);
 
-    // 6. 跑時間區間的數學重疊判定： (StartA < EndB) AND (EndA > StartB)
-    return $schedules->contains(function ($schedule) use ($newStartTime, $newEndTime) {
-        return $schedule->start_time < $newEndTime && $schedule->end_time > $newStartTime;
-    });
-}
+        if ($excludeScheduleId) {
+            $query->where('schedules.id', '!=', $excludeScheduleId);
+        }
+
+        return $query->exists();
+    }
 
     public function getOccupiedSlots(Request $request)
     {
@@ -1116,5 +1189,67 @@ public function getAvailableTimeSlots(Request $request)
         }
 
         return redirect()->to('/schedules')->with('success', 'Maintenance completely removed.');
+    }
+
+    /**
+     * AJAX Slot Checker API — Checks whether a lab room is available
+     * for a given date and time window.
+     *
+     * GET /api/slot-checker?lab_id=X&date=Y&start_time=Z&end_time=W
+     *
+     * Returns JSON:
+     *   { "available": true }   — slot is free
+     *   { "available": false }  — slot is occupied (conflict exists)
+     *
+     * Conflict formula:
+     *   existing.start_time < input.end_time
+     *   AND existing.end_time > input.start_time
+     */
+    public function slotChecker(Request $request)
+    {
+        $request->validate([
+            'lab_id'     => 'required|integer|exists:laboratories,id',
+            'date'       => 'required|date',
+            'start_time' => 'required|date_format:H:i',
+            'end_time'   => 'required|date_format:H:i|after:start_time',
+        ]);
+
+        $labId       = $request->input('lab_id');
+        $date        = $request->input('date');
+        $startTime   = $request->input('start_time') . ':00';
+        $endTime     = $request->input('end_time') . ':00';
+        $dayOfWeek   = \Carbon\Carbon::parse($date)->format('l');
+
+        // 1. Check Schedules table (recurring + date-specific)
+        $scheduleConflict = Schedule::where('lab_id', $labId)
+            ->where(function ($q) use ($dayOfWeek, $date) {
+                $q->where(function ($sub) use ($dayOfWeek) {
+                    $sub->where('is_recurring', true)
+                         ->where('day_of_week', $dayOfWeek);
+                })->orWhere(function ($sub) use ($date) {
+                    $sub->where('is_recurring', false)
+                         ->where('date', $date);
+                });
+            })
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->exists();
+
+        if ($scheduleConflict) {
+            return response()->json(['available' => false]);
+        }
+
+        // 2. Check Bookings table (date-specific)
+        $bookingConflict = Booking::where('lab_id', $labId)
+            ->where('date', $date)
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->exists();
+
+        if ($bookingConflict) {
+            return response()->json(['available' => false]);
+        }
+
+        return response()->json(['available' => true]);
     }
 }

@@ -89,6 +89,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('ai-scheduler.generate');
         Route::post('/ai-scheduler/save', [AiSchedulerController::class, 'saveOptimizedSchedule'])
         ->name('ai-scheduler.save');
+        Route::post('/ai-scheduler/run', [AiSchedulerController::class, 'runAiScheduler'])
+        ->name('ai-scheduler.run');
 
         // Core Academic Schedule Structures (CRUD)
         Route::get('/schedules/add', [ScheduleController::class, 'create']);
@@ -126,7 +128,6 @@ Route::middleware(['auth'])->group(function () {
 
     // ── COMBINED LAB INFRASTRUCTURE RESOLUTION LAYER (Role 1, Role 3 & Role 4 - CRUD Hub) ──
     Route::middleware(['role:1,3,4'])->group(function () {
-        // Technical Fault Escalation Tracking System Actions
         Route::delete('/reports/{report}', [ReportController::class, 'destroy']);
     });
 
@@ -175,6 +176,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/schedules/check-occupied', [ScheduleController::class, 'getOccupiedSlots']);
         Route::get('/schedules/check-occupied-slots', [ScheduleController::class, 'checkOccupiedSlots'])->name('schedules.checkSlots');
         Route::get('/schedules/get-available-time-slots', [ScheduleController::class, 'getAvailableTimeSlots']);
+        Route::get('/api/slot-checker', [ScheduleController::class, 'slotChecker'])->name('api.slot-checker');
 
         // Placement Log Registry Entrances (CRUD for All Roles)
         Route::get('/bookings', [BookingController::class, 'index']);

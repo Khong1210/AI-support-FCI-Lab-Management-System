@@ -401,13 +401,16 @@ class AiSchedulerController extends Controller
     /**
      * Save the AI optimized schedule and bind it dynamically to a real calendar date
      * using precise Carbon calculation. Includes full-semester recurring collision shield.
+     *
+     * Uses the shared ScheduleController::hasScheduleConflict() and
+     * ScheduleController::hasLecturerConflict() for a single source of truth.
      */
     public function saveOptimizedSchedule(Request $request)
     {
         $semesterId = $request->input('semester_id');
-        $dayOfWeek  = $request->input('day_of_week');  // e.g., 'Monday'
-        $startTime  = $request->input('start_time');   // e.g., '08:00:00'
-        $endTime    = $request->input('end_time');     // e.g., '10:00:00'
+        $dayOfWeek  = $request->input('day_of_week');  
+        $startTime  = $request->input('start_time');   
+        $endTime    = $request->input('end_time');     
         $labId      = $request->input('lab_id');
         $courseId   = $request->input('course_id');
 
@@ -419,8 +422,6 @@ class AiSchedulerController extends Controller
 
         $semesterStartDate = Carbon::parse($semester->start_date);
 
-        // 2. Precise Carbon date calculation:
-        //    Map day name (e.g., 'Monday') to ISO weekday number (1=Mon, 7=Sun)
         $dayMapping = [
             'Monday'    => 1,
             'Tuesday'   => 2,
@@ -436,52 +437,34 @@ class AiSchedulerController extends Controller
             return response()->json(['success' => false, 'message' => 'Invalid day_of_week: ' . $dayOfWeek]);
         }
 
-        // Calculate the closest calendar date matching the target weekday on or after semester start
-        $startDayIso = $semesterStartDate->dayOfWeekIso; // 1=Mon ... 7=Sun
+        $startDayIso = $semesterStartDate->dayOfWeekIso; 
         $diff = $targetDayIso - $startDayIso;
         if ($diff < 0) {
-            $diff += 7; // Go to next week
+            $diff += 7; 
         }
         $targetDate = $semesterStartDate->copy()->addDays($diff);
         $calculatedDateStr = $targetDate->format('Y-m-d');
 
-        // 3. ⚡ FULL-SEMESTER RECURRING COLLISION SHIELD
-        //    Since all enrolled courses are weekly recurring (is_recurring = 1),
-        //    collision is: same semester_id + same day_of_week + same lab_id + time overlap.
-        //    Formula: $startTime < existing_end_time && $endTime > existing_start_time
-        $semesterCollision = Schedule::where('semester_id', $semesterId)
-            ->where('day_of_week', $dayOfWeek)
-            ->where('lab_id', $labId)
-            ->where(function($query) use ($startTime, $endTime) {
-                $query->where('start_time', '<', $endTime)
-                      ->where('end_time', '>', $startTime);
-            })
-            ->exists();
+        // Normalize time format to H:i:s for consistent comparison
+        $startTime = \Carbon\Carbon::createFromFormat('H:i', substr($startTime, 0, 5))->format('H:i:s');
+        $endTime   = \Carbon\Carbon::createFromFormat('H:i', substr($endTime, 0, 5))->format('H:i:s');
 
-        if ($semesterCollision) {
+        // ═══ Pass 1: Lab collision re-check (shared logic) ═══
+        if (\App\Http\Controllers\ScheduleController::hasScheduleConflict(
+            $labId, $semesterId, $dayOfWeek, $startTime, $endTime
+        )) {
             return response()->json([
                 'success' => false,
                 'message' => 'Scheduling Conflict Detected! The selected laboratory is already occupied during this timeslot for the current semester.'
             ], 422);
         }
 
-        // 4. ⚡ LECTURER COLLISION SHIELD (BACKEND HARD STOP)
-        //    Resolve the lecturer (user_id) of the current course,
-        //    then check all existing schedules in the same semester for
-        //    same lecturer + same day_of_week + overlapping time windows.
+        // ═══ Pass 2: Lecturer collision re-check (shared logic) ═══
         $course = Course::find($courseId);
         if ($course && $course->user_id) {
-            $lecturerCollision = Schedule::where('schedules.semester_id', $semesterId)
-                ->where('schedules.day_of_week', $dayOfWeek)
-                ->where(function($query) use ($startTime, $endTime) {
-                    $query->where('schedules.start_time', '<', $endTime)
-                          ->where('schedules.end_time', '>', $startTime);
-                })
-                ->join('courses', 'schedules.course_id', '=', 'courses.id')
-                ->where('courses.user_id', $course->user_id)
-                ->exists();
-
-            if ($lecturerCollision) {
+            if (\App\Http\Controllers\ScheduleController::hasLecturerConflict(
+                $course->user_id, $semesterId, $dayOfWeek, $startTime, $endTime
+            )) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Lecturer Overlap Conflict! The assigned lecturer has already been scheduled for another class during this timeslot.'
@@ -489,24 +472,325 @@ class AiSchedulerController extends Controller
             }
         }
 
-        // 5. Persist the Schedule with hardcoded recurring fields
-        $schedule = new Schedule();
-        $schedule->semester_id  = $semesterId;
-        $schedule->course_id    = $courseId;
-        $schedule->lab_id       = $labId;
-        $schedule->start_time   = $startTime;
-        $schedule->end_time     = $endTime;
-        $schedule->date         = $calculatedDateStr;
-        $schedule->day_of_week  = $dayOfWeek;
-        $schedule->is_recurring = 1;
-        $schedule->schedule_type = 'enroll';
-        $schedule->booking_id   = null;
-        $schedule->save();
+        // ═══ Defensive re-validation inside a transaction ═══
+        DB::beginTransaction();
+        try {
+            // Final re-check before insert (catches race conditions within the lock window)
+            if (\App\Http\Controllers\ScheduleController::hasScheduleConflict(
+                $labId, $semesterId, $dayOfWeek, $startTime, $endTime
+            )) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Scheduling Conflict Detected! (safety re-check before commit)'
+                ], 422);
+            }
 
-        return response()->json([
-            'success' => true,
-            'message' => $targetDate->format('Y-m-d (l)'),
-            'schedule_id' => $schedule->id,
+            if ($course && $course->user_id) {
+                if (\App\Http\Controllers\ScheduleController::hasLecturerConflict(
+                    $course->user_id, $semesterId, $dayOfWeek, $startTime, $endTime
+                )) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Lecturer Overlap Conflict! (safety re-check before commit)'
+                    ], 422);
+                }
+            }
+
+            $schedule = new Schedule();
+            $schedule->semester_id  = $semesterId;
+            $schedule->course_id    = $courseId;
+            $schedule->lab_id       = $labId;
+            $schedule->start_time   = $startTime;
+            $schedule->end_time     = $endTime;
+            $schedule->date         = $calculatedDateStr;
+            $schedule->day_of_week  = $dayOfWeek;
+            $schedule->is_recurring = 1;
+            $schedule->schedule_type = 'enroll';
+            $schedule->booking_id   = null;
+            $schedule->save();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => $targetDate->format('Y-m-d (l)'),
+                'schedule_id' => $schedule->id,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('saveOptimizedSchedule transaction failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Database error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Run the AI Scheduler pipeline end-to-end.
+     *
+     * POST /ai-scheduler/run
+     *
+     * Orchestrates the full workflow:
+     *   1. Validates the incoming request (semester_id, prompt).
+     *   2. Invokes generateAiSchedule() to obtain AI-computed timetable slots.
+     *   3. Parses the structured slot list from the AI JSON response.
+     *   4. Loops through each slot and persists it into the schedules table.
+     *   5. Redirects with a flash message indicating success.
+     *
+     * If the AI call fails or returns an error, the method redirects back
+     * with the appropriate error message embedded in the session.
+     */
+    public function runAiScheduler(Request $request)
+    {
+        // 1. Validate the structural inputs required by the AI pipeline
+        $request->validate([
+            'semester_id' => 'required|integer|exists:semesters,id',
+            'prompt'      => 'required|string',
         ]);
+
+        $semesterId = $request->input('semester_id');
+
+        // 2. Invoke the AI generation endpoint to obtain raw timetable data.
+        //    generateAiSchedule() returns a JsonResponse — extract its payload.
+        $aiResponse = $this->generateAiSchedule($request);
+        $payload    = $aiResponse->getData(true);
+
+        // 3. Defensive guard: if the AI engine returned an error, surface it
+        if (isset($payload['error']) || empty($payload['text'] ?? null)) {
+            $errorMsg = $payload['error'] ?? 'The AI engine returned an empty response.';
+            return redirect()->back()
+                ->with('error', 'AI Scheduler Error: ' . $errorMsg)
+                ->withInput();
+        }
+
+        $rawText = $payload['text'];
+
+        // 4. Parse the JSON array from the AI response text.
+        //    The system prompt instructs the model to emit a RAW JSON array
+        //    without markdown fences, but we defensively strip backticks.
+        $cleanJson = trim($rawText);
+        $cleanJson = preg_replace('/^```(?:json)?\s*/i', '', $cleanJson);
+        $cleanJson = preg_replace('/\s*```$/', '', $cleanJson);
+
+        $slots = json_decode($cleanJson, true);
+
+        if (!is_array($slots)) {
+            Log::error('AI Scheduler runAiScheduler: Failed to decode AI JSON payload.', [
+                'raw' => $rawText,
+            ]);
+            return redirect()->back()
+                ->with('error', 'AI Scheduler Error: The AI returned an unreadable schedule format.')
+                ->withInput();
+        }
+
+        // 5. Loop through each slot and persist into the database WITH VALIDATION.
+        //    Each slot is expected to contain:
+        //      - course_id   (int)
+        //      - lab_name    (string — resolved to lab_id, case-insensitive)
+        //      - day_of_week (string, e.g. "Monday")
+        //      - time_window (string, e.g. "08:00 AM - 10:00 AM")
+        //
+        //    ═══════════════════════════════════════════════════════════════
+        //    COLLISION SHIELD: Two-stage re-validation per slot:
+        //      Stage A:  In-memory accumulator — checks against all slots
+        //                already accepted earlier in THIS batch.
+        //      Stage B:  Database query — checks against all committed rows.
+        //    Both stages check BOTH lab-room overlap AND lecturer overlap.
+        //    ═══════════════════════════════════════════════════════════════
+        $acceptedSlots = []; // in-memory accumulator
+        $savedCount = 0;
+        $skippedCount = 0;
+
+        // Pre-load all courses we'll need for lecturer lookups
+        $courseIdsInBatch = array_unique(array_map(fn($s) => (int)($s['course_id'] ?? 0), $slots));
+        $courseLecturerMap = \App\Models\Course::whereIn('id', $courseIdsInBatch)
+            ->pluck('user_id', 'id')
+            ->toArray();
+
+        // Wrap the entire batch in a single DB transaction for atomicity + race-condition defense
+        DB::beginTransaction();
+        try {
+            // Pre-load semester outside the loop
+            $semester = Semester::find($semesterId);
+            $dayMapping = [
+                'Monday'    => 1, 'Tuesday'   => 2, 'Wednesday' => 3,
+                'Thursday'  => 4, 'Friday'    => 5, 'Saturday'  => 6, 'Sunday'    => 7,
+            ];
+            $semesterStart = \Carbon\Carbon::parse($semester->start_date);
+            $startDayIso = $semesterStart->dayOfWeekIso;
+
+            foreach ($slots as $slot) {
+                $courseId  = (int) ($slot['course_id'] ?? 0);
+                $labName   = trim($slot['lab_name'] ?? '');
+                $dayOfWeek = $slot['day_of_week'] ?? '';
+                $timeWindow = $slot['time_window'] ?? '';
+
+                if (!$courseId || !$labName || !$dayOfWeek || !$timeWindow) {
+                    Log::warning('AI Scheduler runAiScheduler: Skipping malformed slot.', ['slot' => $slot]);
+                    $skippedCount++;
+                    continue;
+                }
+
+                // Resolve lab_name → lab_id (case-insensitive, with fallback)
+                $lab = Laboratory::whereRaw('LOWER(lab_name) = ?', [strtolower($labName)])->first();
+                if (!$lab) {
+                    // Try exact match as fallback
+                    $lab = Laboratory::where('lab_name', $labName)->first();
+                }
+                if (!$lab) {
+                    Log::warning('AI Scheduler runAiScheduler: Lab name not found.', [
+                        'lab_name' => $labName
+                    ]);
+                    $skippedCount++;
+                    continue;
+                }
+
+                // Parse time_window "08:00 AM - 10:00 AM" → start_time / end_time
+                $parts = preg_split('/\s*-\s*/', $timeWindow);
+                if (count($parts) !== 2) {
+                    Log::warning('AI Scheduler runAiScheduler: Bad time_window format.', ['time_window' => $timeWindow]);
+                    $skippedCount++;
+                    continue;
+                }
+
+                $startTime = \Carbon\Carbon::createFromFormat('h:i A', trim($parts[0]))->format('H:i:s');
+                $endTime   = \Carbon\Carbon::createFromFormat('h:i A', trim($parts[1]))->format('H:i:s');
+
+                // Compute the anchor date (first occurrence of day_of_week in the semester)
+                $targetDayIso = $dayMapping[$dayOfWeek] ?? 1;
+                $diff = $targetDayIso - $startDayIso;
+                if ($diff < 0) {
+                    $diff += 7;
+                }
+                $calculatedDate = $semesterStart->copy()->addDays($diff)->format('Y-m-d');
+
+                // ── STAGE A+B: Lab collision check ──
+                if (\App\Http\Controllers\ScheduleController::hasScheduleConflict(
+                    $lab->id, $semesterId, $dayOfWeek, $startTime, $endTime,
+                    null, $acceptedSlots
+                )) {
+                    Log::warning('AI Scheduler runAiScheduler: Lab collision — slot REJECTED.', [
+                        'course_id' => $courseId,
+                        'lab_name'  => $labName,
+                        'day'       => $dayOfWeek,
+                        'time'      => $timeWindow,
+                    ]);
+                    $skippedCount++;
+                    continue;
+                }
+
+                // ── STAGE A+B: Lecturer collision check ──
+                $lecturerUserId = $courseLecturerMap[$courseId] ?? null;
+                if ($lecturerUserId) {
+                    if (\App\Http\Controllers\ScheduleController::hasLecturerConflict(
+                        $lecturerUserId, $semesterId, $dayOfWeek, $startTime, $endTime,
+                        null, $acceptedSlots
+                    )) {
+                        Log::warning('AI Scheduler runAiScheduler: Lecturer collision — slot REJECTED.', [
+                            'course_id'       => $courseId,
+                            'lecturer_user_id'=> $lecturerUserId,
+                            'day'            => $dayOfWeek,
+                            'time'           => $timeWindow,
+                        ]);
+                        $skippedCount++;
+                        continue;
+                    }
+                }
+
+                // ── Persist ──
+                Schedule::create([
+                    'schedule_type' => 'enroll',
+                    'semester_id'   => $semesterId,
+                    'lab_id'        => $lab->id,
+                    'course_id'     => $courseId,
+                    'booking_id'    => null,
+                    'date'          => $calculatedDate,
+                    'day_of_week'   => $dayOfWeek,
+                    'start_time'    => $startTime,
+                    'end_time'      => $endTime,
+                    'is_recurring'  => 1,
+                ]);
+
+                // ── Log this slot into the in-memory accumulator ──
+                $acceptedSlots[] = [
+                    'lab_id'           => $lab->id,
+                    'lecturer_user_id' => $lecturerUserId,
+                    'day_of_week'      => $dayOfWeek,
+                    'start_time'       => $startTime,
+                    'end_time'         => $endTime,
+                ];
+
+                $savedCount++;
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // DEFENSE IN DEPTH: Final pre-commit re-validation of ALL saved
+            // rows against each other — guarantees no double-booking can
+            // persist even if a future code change breaks the loop checks.
+            // ═══════════════════════════════════════════════════════════════
+            if (count($acceptedSlots) > 1) {
+                for ($i = 0; $i < count($acceptedSlots); $i++) {
+                    for ($j = $i + 1; $j < count($acceptedSlots); $j++) {
+                        $a = $acceptedSlots[$i];
+                        $b = $acceptedSlots[$j];
+
+                        // Lab overlap check
+                        if (
+                            $a['lab_id'] === $b['lab_id']
+                            && $a['day_of_week'] === $b['day_of_week']
+                            && $a['start_time'] < $b['end_time']
+                            && $a['end_time'] > $b['start_time']
+                        ) {
+                            DB::rollBack();
+                            Log::error('AI Scheduler: DEFENSE-IN-DEPTH lab overlap caught pre-commit!', [
+                                'slot_a' => $a, 'slot_b' => $b,
+                            ]);
+                            return redirect()->back()
+                                ->with('error', 'AI Scheduler Error: Internal collision detected between generated slots. Batch aborted — no schedules were saved.')
+                                ->withInput();
+                        }
+
+                        // Lecturer overlap check
+                        if (
+                            !empty($a['lecturer_user_id']) && !empty($b['lecturer_user_id'])
+                            && $a['lecturer_user_id'] === $b['lecturer_user_id']
+                            && $a['day_of_week'] === $b['day_of_week']
+                            && $a['start_time'] < $b['end_time']
+                            && $a['end_time'] > $b['start_time']
+                        ) {
+                            DB::rollBack();
+                            Log::error('AI Scheduler: DEFENSE-IN-DEPTH lecturer overlap caught pre-commit!', [
+                                'slot_a' => $a, 'slot_b' => $b,
+                            ]);
+                            return redirect()->back()
+                                ->with('error', 'AI Scheduler Error: Internal lecturer collision detected between generated slots. Batch aborted — no schedules were saved.')
+                                ->withInput();
+                        }
+                    }
+                }
+            }
+
+            DB::commit();
+
+            $message = "AI Schedule generated and synchronized successfully. Saved: {$savedCount} slot(s).";
+            if ($skippedCount > 0) {
+                $message .= " Skipped: {$skippedCount} slot(s) due to conflicts or errors.";
+            }
+
+            return redirect()->to('/ai-scheduler')
+                ->with('success', $message);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('AI Scheduler runAiScheduler: Transaction failed.', [
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()
+                ->with('error', 'AI Scheduler Error: ' . $e->getMessage())
+                ->withInput();
+        }
     }
 }
