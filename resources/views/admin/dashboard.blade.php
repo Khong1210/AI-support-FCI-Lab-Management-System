@@ -129,6 +129,7 @@
             </div>
 
             <div class="space-y-3">
+                @auth @if(in_array((int)auth()->user()->user_role, [1]))
                 <a href="{{ url('/admin/users/add') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
                     <div class="flex items-center">
                         <div class="bg-white/30 rounded-lg p-3 mr-3">
@@ -140,6 +141,7 @@
                         </div>
                     </div>
                 </a>
+                @endif @endauth
 
                 <a href="{{ url('/admin/equipment') }}" class="block bg-white/20 hover:bg-white/30 transition rounded-lg p-4 border border-white/30 backdrop-blur-sm">
                     <div class="flex items-center">

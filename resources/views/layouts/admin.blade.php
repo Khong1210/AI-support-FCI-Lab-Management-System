@@ -349,14 +349,14 @@
                         <p>Semesters</p>
                     </a>
                 </li>
-                 @if(in_array((int)$user->user_role, [1, 2]))
+                @if(in_array((int)$user->user_role, [1, 2]))
                 <li class="nav-item">
                     <a href="{{ url('/bookings') }}" class="nav-link {{ request()->is('bookings') || request()->is('bookings/*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-calendar-check"></i></div>
                         <p>Bookings</p>
                     </a>
-                @endif
                 </li>
+                @endif
                 <li class="nav-item">
                     <a href="{{ url('/booking-requests') }}" class="nav-link {{ request()->is('booking-requests*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>
@@ -382,7 +382,8 @@
                     </a>
                 </li>
 
-                {{-- Software Requests & Approvals --}}
+                {{-- Software Requests & Approvals (Admin, Faculty Manager, Lab Staff, Lab Committee only) --}}
+                @if(in_array((int)$user->user_role, [1, 2, 3, 4]))
                 <li class="nav-item">
                     <a href="{{ route('software-requests.create') }}" class="nav-link {{ request()->is('software-requests/create') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-paper-plane"></i></div>
@@ -405,6 +406,7 @@
                         </p>
                     </a>
                 </li>
+                @endif
 
                 <li class="custom-sidebar-divider" data-title="Reports & Analytics">Reports & Analytics</li>
                 <li class="nav-item">
@@ -470,12 +472,14 @@
                         <p>Schedule</p>
                     </a>
                 </li>
+                @if(in_array((int)$user->user_role, [1, 2]))
                 <li class="nav-item">
                     <a href="{{ url('/ai-scheduler') }}" class="nav-link {{ request()->is('ai-scheduler*') ? 'active' : '' }}">
-                        <div class="nav-icon-box"><i class="fas fa-magic"></i></div>
+                        <div class="nav-icon-box"><i class="fas fa-robot"></i></div>
                         <p>AI Schedule</p>
                     </a>
                 </li>
+                @endif
                 <li class="nav-item">
                     <a href="{{ url('/management/mail') }}" class="nav-link {{ request()->is('management/mail*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>

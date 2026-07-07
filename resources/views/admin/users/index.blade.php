@@ -9,9 +9,11 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h3 class="card-title">User List</h3>
+        @auth @if(in_array((int)auth()->user()->user_role, [1]))
         <a href="{{ url('/management/users/add') }}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus mr-1"></i> Add User
         </a>
+        @endif @endauth
     </div>
     <div class="card-body">
         <form method="GET" action="{{ url('/management/users') }}" class="mb-3">

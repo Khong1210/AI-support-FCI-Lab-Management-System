@@ -265,7 +265,9 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary mr-2" id="toggle-sidebar-btn" title="Toggle Sidebar">
                         <i class="fas fa-expand-arrows-alt"></i>
                     </button>
+                    @auth @if(in_array((int)auth()->user()->user_role, [1, 2]))
                     <a href="{{ url('/schedules/add') }}" class="btn btn-sm btn-primary mr-2"><i class="fas fa-plus"></i> Add</a>
+                    @endif @endauth
                     
                     <div class="btn-group btn-group-sm">
                         @php
@@ -521,6 +523,7 @@
                         </span>
                         @if(!empty($slot['schedule_id']))
                             <div class="d-flex align-items-center mt-1">
+                                @auth @if(in_array((int)auth()->user()->user_role, [1, 2]))
                                 <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-outline-primary mr-2 py-0 px-1">Edit</a>
                                 <form action="{{ url('/schedules/' . $slot['schedule_id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this maintenance? This will clear it from both schedule and booking logs.');" style="display:inline;">
                                     @csrf
@@ -529,6 +532,7 @@
                                         <i class="fas fa-trash-alt"></i> Delete
                                     </button>
                                 </form>
+                                @endif @endauth
                             </div>
                         @endif
                     </div>

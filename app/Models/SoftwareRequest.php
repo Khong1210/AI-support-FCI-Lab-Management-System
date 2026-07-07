@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class SoftwareRequest extends Model
 {
-    // 🎯 修正主键为实际数据库中的 'id'
     protected $primaryKey = 'id'; 
 
     protected $fillable = [

@@ -45,7 +45,7 @@
                             <th>Description</th>
                             <th>Reported Date</th>
                             <th>Status</th>
-                            @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
+                            @if (in_array((int)auth()->user()->user_role, [1, 2, 3, 4]))
                                 <th>Actions</th>
                             @endif
                         </tr>
@@ -62,7 +62,7 @@
                                 <td>{{ $statuses[$report->status] ?? 'Unknown' }}</td>
                                 
                                 {{-- Display action controller operational items only to Roles 1, 3, and 4 --}}
-                                @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
+                                @if (in_array((int)auth()->user()->user_role, [1, 2, 3, 4]))
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
                                             @if($report->status == 1)
@@ -81,11 +81,13 @@
                                                 </form>
                                             @endif
                                             
+                                            @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
                                             <form action="{{ url('/reports/' . $report->id) }}" method="POST" class="d-inline-block delete-form" style="margin-left: 2px;">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this report?')">Delete</button>
                                             </form>
+                                            @endif
                                         </div>
                                     </td>
                                 @endif

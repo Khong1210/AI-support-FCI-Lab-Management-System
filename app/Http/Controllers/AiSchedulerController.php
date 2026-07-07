@@ -107,7 +107,7 @@ class AiSchedulerController extends Controller
         // AI's sole job: pick 1 option per course from the menu.
         // ═══════════════════════════════════════════════════════════════
 
-        // ── 1. Fetch all conflict sources (Schedules + Bookings) ──
+            // ── 1. Fetch all conflict sources (Schedules + Bookings) ──
         $scheduleConflicts = DB::table('schedules')
             ->leftJoin('laboratories', 'schedules.lab_id', '=', 'laboratories.id')
             ->select('schedules.day_of_week', 'schedules.start_time', 'schedules.end_time', 'laboratories.lab_name')
@@ -122,7 +122,7 @@ class AiSchedulerController extends Controller
             ->leftJoin('laboratories', 'bookings.lab_id', '=', 'laboratories.id')
             ->select('bookings.date', 'bookings.start_time', 'bookings.end_time', 'laboratories.lab_name')
             ->whereBetween('bookings.date', [$semesterStartDate, $semesterEndDate])
-            ->where(function($q) { $q->where('bookings.status', 'approved')->orWhere('bookings.type', 'maintenance'); })
+            ->where(function($q) { $q->where('bookings.status', 2)->orWhere('bookings.type', 'maintenance'); })
             ->get();
 
         // ── 2. Build minute‑resolution occupied timeline per (lab, day) ──
@@ -143,16 +143,20 @@ class AiSchedulerController extends Controller
         foreach ($scheduleConflicts as $row) {
             $lab = $row->lab_name;
             $day = $row->day_of_week;
-            $s = max($dayOpen, (int)floor(strtotime($row->start_time) / 60));
-            $e = min($dayClose, (int)ceil(strtotime($row->end_time) / 60));
+            $parts = explode(':', $row->start_time);
+            $s = max($dayOpen, (int)$parts[0] * 60 + (int)$parts[1]);
+            $parts = explode(':', $row->end_time);
+            $e = min($dayClose, (int)$parts[0] * 60 + (int)$parts[1]);
             for ($m = $s; $m < $e; $m++) if (isset($occupied[$lab][$day][$m])) $occupied[$lab][$day][$m] = true;
         }
         foreach ($bookingConflicts as $row) {
             $lab = $row->lab_name;
             $day = $dayNames[Carbon::parse($row->date)->dayOfWeek] ?? null;
             if (!$day || !in_array($day, $weekdays)) continue;
-            $s = max($dayOpen, (int)floor(strtotime($row->start_time) / 60));
-            $e = min($dayClose, (int)ceil(strtotime($row->end_time) / 60));
+            $parts = explode(':', $row->start_time);
+            $s = max($dayOpen, (int)$parts[0] * 60 + (int)$parts[1]);
+            $parts = explode(':', $row->end_time);
+            $e = min($dayClose, (int)$parts[0] * 60 + (int)$parts[1]);
             for ($m = $s; $m < $e; $m++) if (isset($occupied[$lab][$day][$m])) $occupied[$lab][$day][$m] = true;
         }
 
@@ -173,8 +177,6 @@ class AiSchedulerController extends Controller
             }
             return $windows;
         };
-
-        $fmt12 = fn($mm) => date('h:i A', mktime(0, $mm));
 
         // ── 4. Look up all courses + their hours ──
         $courseCatalog = DB::table('courses')
@@ -223,84 +225,117 @@ class AiSchedulerController extends Controller
         };
 
         // ── 6. Build AVAILABLE COMPLIANT SLOTS MENU per pending course ──
-        $menuSections = [];
-        $queueCount = count($idMatches[1]);
+        try {
+            $menuSections = [];
+            $queueCount = count($idMatches[1]);
 
-        for ($i = 0; $i < $queueCount; $i++) {
-            $courseId   = (int) $idMatches[1][$i];
-            $course     = $courseCatalog[$courseId] ?? null;
-            $courseName = $course->course_name ?? "Course #$courseId";
-            $hours      = $course->hours ?? 2;
-            $minMinutes = (int)($hours * 60);
-            $lecturer   = $course->lecturer_name ?? 'N/A';
-            $lecturerId = $course->lecturer_id ?? '';
-            $constraintType  = $constraintMatches[$i][1] ?? 'any';
-            $constraintValue = $constraintMatches[$i][2] ?? '';
-            $timePref  = $prefMatches[1][$i] ?? 'full_day';
+            for ($i = 0; $i < $queueCount; $i++) {
+                $courseId   = (int) $idMatches[1][$i];
+                $course     = $courseCatalog[$courseId] ?? null;
+                $courseName = $course->course_name ?? "Course #$courseId";
+                $hours      = $course->hours ?? 2;
+                $minMinutes = (int)($hours * 60);
+                $lecturer   = $course->lecturer_name ?? 'N/A';
+                $lecturerId = $course->lecturer_id ?? '';
+                $constraintType  = $constraintMatches[$i][1] ?? 'any';
+                $constraintValue = $constraintMatches[$i][2] ?? '';
+                $timePref  = $prefMatches[1][$i] ?? 'full_day';
 
-            $eligibleLabs = $assetEligibleLabs($courseId, $constraintType, $constraintValue);
+                $eligibleLabs = $assetEligibleLabs($courseId, $constraintType, $constraintValue);
 
-            $options = [];
-            foreach ($weekdays as $day) {
-                foreach ($eligibleLabs as $lab) {
-                    if (!isset($occupied[$lab][$day])) continue;
-                    $windows = $findWindows($lab, $day, $minMinutes);
-                    foreach ($windows as $w) {
-                        $label = \Carbon\Carbon::createFromTime(0, $w['start_min'])->format('h:i A')
-                               . ' - '
-                               . \Carbon\Carbon::createFromTime(0, $w['end_min'])->format('h:i A');
-                        // Shift filtering
-                        $slotHour = (int)floor($w['start_min'] / 60);
-                        if ($timePref === 'morning' && $slotHour >= 12) continue;
-                        if ($timePref === 'afternoon' && $slotHour < 12) continue;
-                        $options[] = [
-                            'lab' => $lab,
-                            'day' => $day,
-                            'start' => $w['start_min'],
-                            'end'   => $w['end_min'],
-                            'label' => $label,
-                        ];
+                $options = [];
+                foreach ($weekdays as $day) {
+                    foreach ($eligibleLabs as $lab) {
+                        if (!isset($occupied[$lab][$day])) continue;
+                        
+                        // 抓取该实验室该天所有长条状的 raw 空闲区间
+                        $windows = $findWindows($lab, $day, $minMinutes);
+                        
+                        foreach ($windows as $w) {
+                            $windowStart = $w['start_min'];
+                            $windowEnd   = $w['end_min'];
+
+                            // ─── 滑动窗口切片核心 ───
+                            // 以 30 分钟为步长，在长条空闲区间内切出刚好符合课程时长($minMinutes)的小格子
+                            for ($currentStart = $windowStart; $currentStart + $minMinutes <= $windowEnd; $currentStart += 30) {
+                                $currentEnd = $currentStart + $minMinutes;
+
+                                // ─── 完美修复：上下午偏好精准过滤 ───
+                                // 以前拿大区间的起点判断，现在拿切出来的每一个具体格子起点判断
+                                $slotHour = (int)floor($currentStart / 60);
+                                if ($timePref === 'morning' && $slotHour >= 12) continue;
+                                if ($timePref === 'afternoon' && $slotHour < 12) continue;
+
+                                // 换算为标准的小时与分钟
+                                $startH = intdiv($currentStart, 60);
+                                $startM = $currentStart % 60;
+                                $endH   = intdiv($currentEnd, 60);
+                                $endM   = $currentEnd % 60;
+
+                                // 生成供 AI 选择的精细化 Label (例如 "08:00 AM - 10:00 AM")
+                                $label = \Carbon\Carbon::createFromTime($startH, $startM)->format('h:i A')
+                                       . ' - '
+                                       . \Carbon\Carbon::createFromTime($endH, $endM)->format('h:i A');
+
+                                $options[] = [
+                                    'lab'   => $lab,
+                                    'day'   => $day,
+                                    'start' => $currentStart,
+                                    'end'   => $currentEnd,
+                                    'label' => $label,
+                                ];
+                            }
+                        }
                     }
                 }
-            }
 
-            // Deduplicate
-            $seen = [];
-            $options = array_values(array_filter($options, function($o) use (&$seen) {
-                $k = $o['lab'].'|'.$o['day'].'|'.$o['start'];
-                if (isset($seen[$k])) return false;
-                $seen[$k] = true;
-                return true;
-            }));
+                // Deduplicate
+                $seen = [];
+                $options = array_values(array_filter($options, function($o) use (&$seen) {
+                    $k = $o['lab'].'|'.$o['day'].'|'.$o['start'];
+                    if (isset($seen[$k])) return false;
+                    $seen[$k] = true;
+                    return true;
+                }));
 
-            // Sort: Monday→Friday, then morning→afternoon
-            usort($options, fn($a,$b) =>
-                array_search($a['day'],$weekdays) - array_search($b['day'],$weekdays)
-                ?: $a['start'] - $b['start']
-            );
+                // Sort: Monday→Friday, then morning→afternoon
+                usort($options, fn($a,$b) =>
+                    array_search($a['day'],$weekdays) - array_search($b['day'],$weekdays)
+                    ?: $a['start'] - $b['start']
+                );
 
-            // Limit to TOP 3 options to keep the menu crisp
-            $topOptions = array_slice($options, 0, 3);
+                // Limit to TOP 3 options to keep the menu crisp
+                $topOptions = array_slice($options, 0, 3);
 
-            if (empty($topOptions)) {
-                $menuSections[] = "⚠️  COURSE: {$courseName} (ID: {$courseId})\n"
-                    . "   Lecturer: {$lecturer} (ID: {$lecturerId}) | Required: {$hours}h | Pref: {$timePref}\n"
-                    . "   ⛔ NO VIABLE WINDOWS FOUND. All slots conflicted or no eligible lab.\n\n";
-            } else {
-                $section = "📋 COURSE: {$courseName} (ID: {$courseId}) — Requires {$hours} hour(s)\n"
-                         . "   Lecturer: {$lecturer} (ID: {$lecturerId}) | Constraint: {$constraintType}={$constraintValue} | Pref: {$timePref}\n";
-                foreach ($topOptions as $j => $opt) {
-                    $num = $j + 1;
-                    $section .= "   Option {$num}: {$opt['day']} {$opt['label']} — Lab: {$opt['lab']}\n";
+                if (empty($topOptions)) {
+                    $menuSections[] = "⚠️  COURSE: {$courseName} (ID: {$courseId})\n"
+                        . "   Lecturer: {$lecturer} (ID: {$lecturerId}) | Required: {$hours}h | Pref: {$timePref}\n"
+                        . "   ⛔ NO VIABLE WINDOWS FOUND. All slots conflicted or no eligible lab.\n\n";
+                } else {
+                    $section = "📋 COURSE: {$courseName} (ID: {$courseId}) — Requires {$hours} hour(s)\n"
+                             . "   Lecturer: {$lecturer} (ID: {$lecturerId}) | Constraint: {$constraintType}={$constraintValue} | Pref: {$timePref}\n";
+                    foreach ($topOptions as $j => $opt) {
+                        $num = $j + 1;
+                        $section .= "   Option {$num}: {$opt['day']} {$opt['label']} — Lab: {$opt['lab']}\n";
+                    }
+                    $section .= "\n";
+                    $menuSections[] = $section;
                 }
-                $section .= "\n";
-                $menuSections[] = $section;
             }
-        }
 
-        $menuText = count($menuSections) > 0
-            ? "=== AVAILABLE COMPLIANT SLOTS MENU (PHP precomputed — NO clock math needed) ===\n\n" . implode("\n", $menuSections)
-            : "=== MENU: [EMPTY — No courses to schedule.] ===\n";
+            $menuText = count($menuSections) > 0
+                ? "=== AVAILABLE COMPLIANT SLOTS MENU (PHP precomputed — NO clock math needed) ===\n\n" . implode("\n", $menuSections)
+                : "=== MENU: [EMPTY — No courses to schedule.] ===\n";
+        } catch (\Exception $e) {
+            Log::error('AI Scheduler menu-building failed: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            return response()->json([
+                'error' => 'Menu building failed: ' . $e->getMessage()
+            ], 500);
+        }
 
         // ── 7. Build the System Prompt — Menu-Picking Mode ──
         $systemPrompt = "CRITICAL SYSTEM DIRECTIVE — FCI Lab Menu-Picking Scheduler\n"
@@ -513,6 +548,8 @@ class AiSchedulerController extends Controller
 
             DB::commit();
 
+            session()->flash('just_created_schedule_id', $schedule->id);
+
             return response()->json([
                 'success' => true,
                 'message' => $targetDate->format('Y-m-d (l)'),
@@ -701,7 +738,7 @@ class AiSchedulerController extends Controller
                 }
 
                 // ── Persist ──
-                Schedule::create([
+                $newSchedule = Schedule::create([
                     'schedule_type' => 'enroll',
                     'semester_id'   => $semesterId,
                     'lab_id'        => $lab->id,
@@ -780,6 +817,7 @@ class AiSchedulerController extends Controller
                 $message .= " Skipped: {$skippedCount} slot(s) due to conflicts or errors.";
             }
 
+            session()->flash('just_created_schedule_id', $newSchedule->id);
             return redirect()->to('/ai-scheduler')
                 ->with('success', $message);
 

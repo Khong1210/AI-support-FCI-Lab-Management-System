@@ -29,10 +29,25 @@ class ScheduleController extends Controller
         $semesterStartDate = $selectedSemester ? \Carbon\Carbon::parse($selectedSemester->start_date) : null;
         $semesterEndDate = $selectedSemester ? \Carbon\Carbon::parse($selectedSemester->end_date) : null;
 
+        // If arriving from a "just created a schedule" action, override defaults
+        // with that specific schedule's metadata so filters pre-select correctly.
+        $justCreatedId = session('just_created_schedule_id');
+        if ($justCreatedId) {
+            $justCreatedSchedule = \App\Models\Schedule::find($justCreatedId);
+            if ($justCreatedSchedule) {
+                $selectedLabId = $justCreatedSchedule->lab_id;
+                if ($justCreatedSchedule->semester_id) {
+                    $selectedSemesterId = $justCreatedSchedule->semester_id;
+                }
+                if ($justCreatedSchedule->date) {
+                    $request->merge(['date' => $justCreatedSchedule->date]);
+                }
+            }
+        }
+
         $lecturers = \App\Models\User::where('user_role', 5)->get();
 
         $viewTarget = $request->input('view_target'); 
-        $selectedLabId = null;
         $selectedLecturerId = null;
 
         if ($viewTarget) {
@@ -41,13 +56,18 @@ class ScheduleController extends Controller
             } elseif (str_starts_with($viewTarget, 'lec_')) {
                 $selectedLecturerId = str_replace('lec_', '', $viewTarget);
             }
-        } else {
+        } elseif (!$selectedLabId) {
+            // No view_target and no lab_id from query params → default to first lab
             $firstLab = $laboratories->first();
             $selectedLabId = $firstLab ? $firstLab->id : null;
 
             if ($selectedLabId) {
                 $request->merge(['view_target' => 'lab_' . $selectedLabId]);
             }
+        } else {
+            // lab_id was provided via query param (e.g. from store() redirect),
+            // but no view_target → construct view_target so the dropdown shows selected
+            $request->merge(['view_target' => 'lab_' . $selectedLabId]);
         }
 
         $selectedLab = $selectedLabId ? \App\Models\Laboratory::find($selectedLabId) : null;
@@ -746,7 +766,7 @@ class ScheduleController extends Controller
         }
 
         if ($type === 'enroll') {
-            Schedule::create([
+            $schedule = Schedule::create([
                 'schedule_type' => 'enroll',
                 'semester_id' => $targetSemesterId,
                 'lab_id' => $request->input('lab_id'),
@@ -771,7 +791,7 @@ class ScheduleController extends Controller
                 'status' => 2,
             ]);
 
-            Schedule::create([
+            $schedule = Schedule::create([
                 'schedule_type' => 'booking',
                 'semester_id' => $targetSemesterId ?: null,
                 'lab_id' => $request->input('lab_id'),
@@ -796,7 +816,7 @@ class ScheduleController extends Controller
                 'status' => 2,
             ]);
 
-            Schedule::create([
+            $schedule = Schedule::create([
                 'schedule_type' => 'maintenance',
                 'semester_id' => $targetSemesterId ?: null,
                 'lab_id' => $request->input('lab_id'),
@@ -815,7 +835,9 @@ class ScheduleController extends Controller
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => 'Schedule saved successfully.']);
         }
-        return redirect()->to('/schedules')->with('success', 'Schedule saved successfully.');
+        session()->flash('just_created_schedule_id', $schedule->id);
+        return redirect()->route('schedules.index')
+            ->with('success', 'Schedule saved successfully.');
         
     } catch (\Exception $ex) {
         DB::rollBack();

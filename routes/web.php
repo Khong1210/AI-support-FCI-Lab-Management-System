@@ -51,6 +51,7 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:1'])->group(function () {
         // Absolute Destructive Action Restrictions (No Managers allowed to Delete users or Labs)
         Route::delete('/management/users/{user}', [AdminController::class, 'destroyUser']);
+        Route::post('/management/users', [AdminController::class, 'storeUser']);
         Route::post('/laboratories', [LaboratoryController::class, 'store']);
         Route::delete('/laboratories/{laboratory}', [LaboratoryController::class, 'destroy']);
     });
@@ -58,11 +59,10 @@ Route::middleware(['auth'])->group(function () {
 
     // ── HIGH LEVEL MANAGEMENT ROUTING CONTROL (Role 1 & Role 2) ──
     Route::middleware(['role:1,2'])->group(function () {
-        // User Account Management Interfaces (CRU for Manager, Admin handles Delete above)
+        // User Account Management Interfaces (CRU for Manager, Admin handles Create & Delete above)
         Route::get('/management/users', [AdminController::class, 'users']);
         Route::get('/management/users/add', [AdminController::class, 'createUser']);
         Route::get('/management/users/create', [AdminController::class, 'createUser']);
-        Route::post('/management/users', [AdminController::class, 'storeUser']);
         Route::get('/management/users/{user}/edit', [AdminController::class, 'editUser']);
         Route::put('/management/users/{user}', [AdminController::class, 'updateUser']);
 
@@ -172,18 +172,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/software', [SoftwareController::class, 'index']);
 
         // Master Schedule Real-time Layout Viewports
-        Route::get('/schedules', [ScheduleController::class, 'index']);
+        Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
         Route::get('/schedules/check-occupied', [ScheduleController::class, 'getOccupiedSlots']);
         Route::get('/schedules/check-occupied-slots', [ScheduleController::class, 'checkOccupiedSlots'])->name('schedules.checkSlots');
         Route::get('/schedules/get-available-time-slots', [ScheduleController::class, 'getAvailableTimeSlots']);
         Route::get('/api/slot-checker', [ScheduleController::class, 'slotChecker'])->name('api.slot-checker');
-
-        // Placement Log Registry Entrances (CRUD for All Roles)
-        Route::get('/bookings', [BookingController::class, 'index']);
-        Route::get('/bookings/add', [BookingController::class, 'create']);
-        Route::get('/bookings/create', [BookingController::class, 'create']);
-        Route::post('/bookings', [BookingController::class, 'store']);
-        Route::delete('/bookings/{booking}', [BookingController::class, 'destroy']);
 
         // Booking Request Pipeline System Routes
         Route::get('/booking-requests', [BookingRequestController::class, 'index']);
@@ -196,5 +189,15 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/reports/add', [ReportController::class, 'create']);
         Route::get('/reports/create', [ReportController::class, 'create']);
         Route::post('/reports', [ReportController::class, 'store']);
+    });
+
+
+    // ── BOOKINGS MANAGEMENT (Admin & Faculty Manager Only) ──
+    Route::middleware(['role:1,2'])->group(function () {
+        Route::get('/bookings', [BookingController::class, 'index']);
+        Route::get('/bookings/add', [BookingController::class, 'create']);
+        Route::get('/bookings/create', [BookingController::class, 'create']);
+        Route::post('/bookings', [BookingController::class, 'store']);
+        Route::delete('/bookings/{booking}', [BookingController::class, 'destroy']);
     });
 });

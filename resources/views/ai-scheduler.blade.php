@@ -536,12 +536,12 @@
         const selectedCourseName = courseSelect.options[courseSelect.selectedIndex]?.getAttribute('data-name') || '';
 
         if (!selectedCourseId) {
-            alert("⚠️ Please specify a target Course registry row before saving.");
+            alert(" Please specify a target Course registry row before saving.");
             return;
         }
 
         if (schedulingQueue.some(item => item.courseId === selectedCourseId)) {
-            alert("❌ This course is already loaded inside the execution queue deck.");
+            alert(" This course is already loaded inside the execution queue deck.");
             return;
         }
 
@@ -552,16 +552,16 @@
         if (constraintType === 'software') {
             constraintValue = document.getElementById('ai_software_name').value;
             if (!constraintValue) { alert("Please allocate required Software asset context."); return; }
-            constraintLabel = `💿 Software: ${constraintValue}`;
+            constraintLabel = ` Software: ${constraintValue}`;
         } else if (constraintType === 'hardware') {
             constraintValue = document.getElementById('ai_equipment_name').value;
             if (!constraintValue) { alert("Please allocate required Hardware Asset context."); return; }
-            constraintLabel = `🎛️ Hardware: ${constraintValue}`;
+            constraintLabel = ` Hardware: ${constraintValue}`;
         } else if (constraintType === 'laboratory') {
             const labSelect = document.getElementById('ai_lab_id');
             constraintValue = labSelect.options[labSelect.selectedIndex]?.getAttribute('data-name') || '';
             if (!constraintValue) { alert("Please select target unique laboratory boundary."); return; }
-            constraintLabel = `🏫 Fixed Lab: ${constraintValue}`;
+            constraintLabel = ` Fixed Lab: ${constraintValue}`;
         }
 
         const timePreference = document.getElementById('ai_time_preference').value;
@@ -641,7 +641,7 @@
     // Clear Everything Trigger
     clearQueueButton.addEventListener('click', () => {
         if (schedulingQueue.length > 0) {
-            if (!confirm('⚠️ Clear all queued courses?')) {
+            if (!confirm(' Clear all queued courses?')) {
                 return;
             }
         }
@@ -835,7 +835,6 @@ ${compiledRequirementsText}`;
             });
 
             renderResultTable(fallbackSlots, "Intelligent Local Anti-Collision Engine (AI Unavailable)", "warning");
-            // Insert a notice banner above the result table
             const noticeBanner = document.createElement('div');
             noticeBanner.className = 'alert alert-warning alert-dismissible fade show mb-3';
             noticeBanner.innerHTML = `
@@ -852,12 +851,16 @@ ${compiledRequirementsText}`;
     // ========================================================
     // UI RENDER: GENERATE ALTERNATIVES MATRIX TABLE
     // ========================================================
+
+    // function renderResultTable(slotsArray, messageTitle, alertType) {
+    //     let tableHtml = `
+    //         <div class="alert alert-${alertType} d-flex align-items-center mb-3">
+    //             <i class="fas ${alertType === 'success' ? 'fa-check-double' : 'fa-exclamation-triangle'} me-2"></i> 
+    //             <div><strong>${messageTitle}:</strong> Matrix calculated successfully. Ready for active sync.</div>
+    //         </div>
     function renderResultTable(slotsArray, messageTitle, alertType) {
         let tableHtml = `
-            <div class="alert alert-${alertType} d-flex align-items-center mb-3">
-                <i class="fas ${alertType === 'success' ? 'fa-check-double' : 'fa-exclamation-triangle'} me-2"></i> 
-                <div><strong>${messageTitle}:</strong> Matrix calculated successfully. Ready for active sync.</div>
-            </div>
+           
             <div class="table-responsive">
                 <table class="table table-bordered table-striped table-hover align-middle text-center mt-2">
                     <thead class="table-dark">
