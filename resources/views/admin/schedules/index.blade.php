@@ -7,7 +7,7 @@
 @push('styles')
 <style>
     /* Compact schedule table styles inspired by the prototype */
-    /* 🌟 核心修复1：给主课表大表格穿上铁甲，强制等宽，绝不纵容自适应拉伸 */
+
     .schedule-matrix,
     .weekly-schedule-matrix table {
         table-layout: fixed !important;
@@ -34,18 +34,18 @@
         word-break: break-word !important;
         overflow: hidden !important;
     }
-    /* 🌟 核心修复2：精准划分每一列的绝对地盘 */
+
     .schedule-matrix .time-col {
         background-color: #f4f6f9;
         font-weight: bold;
         text-align: center;
         vertical-align: middle;
-        width: 80px !important;  /* 给时间轴一列稳固的物理宽度 */
+        width: 80px !important;
         min-width: 80px !important;
         max-width: 80px !important;
         font-size: 0.75rem;
     }
-    /* 剩下的 7 天（Mo, Tu, We, Th, Fr, Sa, Su）绝对等宽死卡死 */
+
     .schedule-matrix th:not(.time-col) {
         width: calc((100% - 80px) / 7) !important;
     }
@@ -119,17 +119,17 @@
     
     /* Calendar Grid for right column */
     .mini-calendar {
-        table-layout: fixed !important; /* 🌟 核心修复1：强行锁定表格布局，不允许内容自适应撑开 */
-        width: 100% !important;         /* 确保小日历占满卡片容器 */
+        table-layout: fixed !important;
+        width: 100% !important;
         text-align: center;
         border-collapse: collapse;
     }
     .mini-calendar th, 
     .mini-calendar td {
-        width: 14.285% !important;      /* 🌟 核心修复2：死死卡住每列刚好占 1/7 宽度，平分天下 */
+        width: 14.285% !important;
         text-align: center;
         vertical-align: middle;
-        word-break: break-all;          /* 极端防爆：哪怕链接参数再长，也必须就地折行，绝不撑宽列 */
+        word-break: break-all;
         padding: 5px 0;
         border: 1px solid #dee2e6;
     }
@@ -316,7 +316,7 @@
                     <tbody>
                         @foreach($timetable as $timeSlot => $daysRow)
                             @php
-                                // 💡 1. 如果時段到了 18:00 或更晚，直接跳過不畫，完美收官在 05:00 PM
+
                                 if (\Carbon\Carbon::createFromFormat('H:i', $timeSlot)->hour >= 18) {
                                     continue;
                                 }
@@ -335,12 +335,11 @@
                                         $slot = $daysRow[$day]; 
                                     @endphp
                                     
-                                    {{-- 如果是被合併的儲存格，直接跳過 --}}
+
                                     @if($slot['type'] === 'skip')
                                         @continue
                                     @endif
 
-                                    {{-- 💡 2. 動態綁定外層 <td> 的背景色樣式 --}}
                                     <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }} {{ $slot['type'] === 'enroll' ? 'bg-enroll-td' : '' }} {{ $slot['type'] === 'booking' ? 'bg-booking-td' : '' }} {{ $slot['type'] === 'maintenance' ? 'bg-maintenance-td' : '' }}" rowspan="{{ $slot['rowspan'] }}" style="padding: 0; vertical-align: top;">
                                         
                                         @if($slot['type'] === 'none')
@@ -348,20 +347,20 @@
                                             
                                         @elseif($slot['type'] === 'maintenance')
                                             @php
-                                                // 如果 data 是字串（系統全天關閉），或是 Booking 物件
+
                                                 $mPurpose = (is_object($slot['data']) && isset($slot['data']->purpose)) ? $slot['data']->purpose : (is_string($slot['data']) ? $slot['data'] : 'Maintenance');
                                                 $mStart = (is_object($slot['data']) && isset($slot['data']->start_time)) ? substr($slot['data']->start_time, 0, 5) : $timeSlot;
                                                 $mEnd = (is_object($slot['data']) && isset($slot['data']->end_time)) ? substr($slot['data']->end_time, 0, 5) : '';
                                                 $labName = (is_object($slot['data']) && isset($slot['data']->laboratory)) ? ($slot['data']->laboratory->lab_name ?? 'Room') : ($selectedLab->lab_name ?? 'Room');
                                             @endphp
-                                            {{-- 使用 Flex 佈局確保 Edit 按鈕永遠靠最下 --}}
+
                                             <div class="schedule-block maintenance" style="height: 100%; min-height: 60px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; border: none;">
                                                 <div>
                                                     <strong class="d-block">Maintenance ({{ $labName }})</strong>
                                                     <span class="d-block small text-muted">{{ $mStart }} - {{ $mEnd }}</span>
                                                     <span class="d-block small">{{ $mPurpose }}</span>
                                                 </div>
-                                                {{-- 💡 3. 如果後端有抓到對應的 schedule_id，就渲染 Edit 按鈕 --}}
+
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
@@ -384,7 +383,7 @@
                                                     <span class="d-block small text-muted">{{ $bStart }} - {{ $bEnd }}</span>
                                                     <span class="d-block small">Venue: {{ $labName }}</span>
                                                 </div>
-                                                {{-- 💡 4. Booking 的 Edit 按鈕 --}}
+
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
@@ -403,7 +402,7 @@
                                                     <span class="d-block small">Semester: {{ $slot['data']->semester->name ?? 'None' }}</span>
                                                     <span class="d-block small">Venue: {{ $slot['data']->laboratory->lab_name ?? 'None' }}</span>
                                                 </div>
-                                                {{-- 💡 5. Enroll 課程的 Edit 按鈕 --}}
+
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
 
                                                     @if(!empty($slot['schedule_id']))
@@ -435,20 +434,19 @@
       <div class="card card-outline shadow-sm mb-3">
             <div class="card-header border-0 d-flex justify-content-between align-items-center p-2 bg-light">
                 @php
-                    // 建立乾淨的篩選參數陣列
+
                     $linkParams = [];
                     if (!empty($selectedSemesterId)) { 
                         $linkParams['semester_id'] = $selectedSemesterId; 
                     }
                     
-                    // 【核心修正】小月曆改用二合一的 view_target 來鎖定目前的視角 (Lab 或是 Lecturer)
+
                     if (!empty($selectedLabId)) { 
                         $linkParams['view_target'] = 'lab_' . $selectedLabId; 
                     } elseif (!empty($selectedLecturerId)) { 
                         $linkParams['view_target'] = 'lec_' . $selectedLecturerId; 
                     }
 
-                    // 使用 http_build_query 打包，前面不手動拼接 ?date=
                     $qs = !empty($linkParams) ? '&' . http_build_query($linkParams) : '';
                 @endphp
                 
@@ -482,7 +480,7 @@
                                     </td>
                                 @endforeach
                                 
-                                {{-- 🌟 核心修复3：安全防线。如果当月最后一周不足 7 天，自动用空 td 补齐，绝对不给浏览器留下把星期三扯宽的架构漏洞 --}}
+
                                 @if(count($week) < 7)
                                     @for($i = 0; $i < (7 - count($week)); $i++)
                                         <td></td>

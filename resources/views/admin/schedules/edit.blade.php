@@ -159,7 +159,7 @@
 <form id="delete-schedule-form" action="{{ url('/schedules/' . $schedule->id) }}" method="POST" style="display: none;">
     @csrf
     @method('DELETE')
-    {{-- 护送参数：供 destroy() 智能重定向回主课表页面 --}}
+
     <input type="hidden" name="redirect_date" value="{{ $schedule->date }}">
     <input type="hidden" name="redirect_lab_id" value="{{ $schedule->lab_id }}">
     @if(request('view_target'))
@@ -244,12 +244,11 @@
         .catch(() => []);
     }
 
-   // 修改这个函数，直接调用你刚才在 Controller 写好的新方法
 function updateStartTimeOptions() {
     const dateInput = document.getElementById('schedule-date');
     const labSelect = document.getElementById('lab-id-select');
     const startSelect = document.getElementById('start-time-select');
-    const excludeIdEl = document.getElementById('exclude-schedule-id'); // 确保编辑时排除自己
+    const excludeIdEl = document.getElementById('exclude-schedule-id');
 
     if (!dateInput || !labSelect || !startSelect) return;
 
@@ -316,13 +315,12 @@ function updateStartTimeOptions() {
         const courseSelect = document.getElementById('course-select');
         const startSelect = document.getElementById('start-time-select');
         const endSelect = document.getElementById('end-time-select');
-        // 获取当前的排班类型（enroll / maintenance / booking）
+
         const scheduleTypeInput = document.getElementById('schedule-type');
         const scheduleType = scheduleTypeInput ? scheduleTypeInput.value : 'enroll';
 
         if (!endSelect || !startSelect) return;
 
-        // 🎯 核心修复：只有正规排课 (enroll) 模式才锁死结束时间
         if (scheduleType === 'enroll') {
             if (!courseSelect) return;
             const hours = parseInt(courseSelect.dataset.hours || '1', 10);
@@ -334,9 +332,9 @@ function updateStartTimeOptions() {
             const endTime = minutesToTime(endMin);
 
             endSelect.value = endTime;
-            endSelect.disabled = true; // 课程模式下，老老实实锁死
+            endSelect.disabled = true;
         } else {
-            // 🎯 核心修复：如果是临时维护或散客预订，彻底解放下拉框，允许用户选别的结束时间！
+
             endSelect.disabled = false;
         }
     }

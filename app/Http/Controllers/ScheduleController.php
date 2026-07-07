@@ -74,7 +74,7 @@ class ScheduleController extends Controller
         $selectedLecturer = $selectedLecturerId ? \App\Models\User::find($selectedLecturerId) : null;
 
         // Only load enroll schedules here, because booking/maintenance slots are rendered separately
-        // 修改后：放开限制，允许加载所有类型的排班（enroll, booking, maintenance）
+
         $scheduleQuery = Schedule::with(['course', 'semester', 'laboratory', 'booking']);   
        
         if ($selectedSemesterId) {
@@ -84,7 +84,7 @@ class ScheduleController extends Controller
                 $semesterEndDate = \Carbon\Carbon::parse($selectedSemester->end_date);
             }
         }
-        // 修改后：如果是 enroll 类型就必须匹配学期；如果是 booking/maintenance，放宽条件，只要它是在本周内即可
+
         if ($selectedSemesterId) {
             $scheduleQuery->where(function ($query) use ($selectedSemesterId) {
                 $query->where('semester_id', $selectedSemesterId)
@@ -190,20 +190,19 @@ class ScheduleController extends Controller
                     $blocks = max(1, $startCarbon->diffInMinutes($endCarbon) / 60);
 
                     if (isset($timetable[$start][$day])) {
-                        // 💡 核心修復：從資料庫字串中抓取精確的 schedule_type
+
                         $realType = $sched->schedule_type ?: 'enroll';
                         
-                        // 💡 如果有關聯的 booking，再次校正它的真實子類型 ('booking' 或 'maintenance')
+
                         if ($sched->booking_id && $sched->booking) {
                             $realType = $sched->booking->type ?? $realType;
                         }
 
                         $timetable[$start][$day]['type'] = $realType;
                         $timetable[$start][$day]['rowspan'] = $blocks;
-                        $timetable[$start][$day]['schedule_id'] = $sched->id; // 💡 塞入原裝 Schedule ID 給前端生成 Edit 按鈕
+                        $timetable[$start][$day]['schedule_id'] = $sched->id;
                         
-                        // 如果是課程，存儲整個 schedule 模型；如果是預訂/維護，存儲其關聯的 booking 模型
-                        // 🎯 幽灵数据防御：如果关联的 booking 已被从 /bookings 删除，注入安全兜底对象防止 Blade 崩溃
+
                         if ($realType !== 'enroll' && is_null($sched->booking)) {
                             $timetable[$start][$day]['data'] = (object) [
                                 'purpose'    => 'Lab Maintenance (Orphaned)',
@@ -240,12 +239,12 @@ class ScheduleController extends Controller
                 $blocks = max(1, $startCarbon->diffInMinutes($endCarbon) / 60);
                 
                 if (isset($timetable[$start][$day]) && $timetable[$start][$day]['type'] === 'none') {
-                    $realBookingType = $booking->type ?? 'booking'; // 以欄位紀錄的 type 為主
+                    $realBookingType = $booking->type ?? 'booking';
                     
                     $timetable[$start][$day]['type'] = $realBookingType;
                     $timetable[$start][$day]['rowspan'] = $blocks;
                     
-                    // 💡 嘗試反向查找對應的 schedule_id
+
                     $linkedScheduleId = \App\Models\Schedule::where('booking_id', $booking->id)->value('id');
                     $timetable[$start][$day]['schedule_id'] = $linkedScheduleId;
                     
@@ -402,13 +401,11 @@ class ScheduleController extends Controller
 
     public function create()
     {
-        // 取得下拉選單資料
+
         $laboratories = Laboratory::orderBy('lab_name')->get();
         $courses = Course::orderBy('course_name')->get();
         $semesters = Semester::orderBy('start_date', 'desc')->get();
 
-        // 篩選出 user_role 為 3 或 4 的使用者作為技師清單
-        // 傳至 view 用於維護指派
         $technicians = User::whereIn('user_role', [3, 4])->get();
 
         return view('admin.schedules.create', compact('laboratories', 'courses', 'semesters', 'technicians'));
@@ -638,7 +635,6 @@ class ScheduleController extends Controller
             return;
         }
 
-        // ====== 加固验证：Enroll 模式下严格限制日期属于所选学期的 Bounds ======
         if ($type === 'enroll') {
             $semesterId = $request->input('semester_id');
             $semester = \App\Models\Semester::find($semesterId);
@@ -754,7 +750,6 @@ class ScheduleController extends Controller
         }
         // ===== END ALL-DAY MAINTENANCE OVERRIDE =====
 
-        // 🚀【智能修复补丁】非 Enroll 模式（如 Booking）下，如果前端没传学期，根据选择的日期自动计算并锁回正确的学期ID
         $targetSemesterId = $request->input('semester_id');
         if (!$targetSemesterId && $date) {
             $matchedSemester = \App\Models\Semester::where('start_date', '<=', $date)
@@ -1036,7 +1031,7 @@ public function getAvailableTimeSlots(Request $request)
         // Conflict checking variables
         $labId = $request->input('lab_id');
         
-        // 💡 核心修復：確保拿到的是標準的 5 位數 "HH:mm" 字串，不受任何秒數干擾
+
         $newStart = substr($request->input('start_time'), 0, 5);
         $newEnd = substr($request->input('end_time'), 0, 5);
         $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
@@ -1054,7 +1049,7 @@ public function getAvailableTimeSlots(Request $request)
             ->get(['start_time', 'end_time']);
 
         foreach ($schedules as $s) {
-            // 💡 核心修復：把資料庫帶出的 "HH:mm:ss" 強制裁切成 "HH:mm"
+
             $dbStart = substr($s->start_time, 0, 5);
             $dbEnd = substr($s->end_time, 0, 5);
 
@@ -1076,7 +1071,6 @@ public function getAvailableTimeSlots(Request $request)
                     continue;
                 }
 
-                // 💡 核心修復：Booking 表拉出的時間也必須裁切，防止 "13:00:00" > "13:00" 的字串比對漏洞
                 $dbBookingStart = substr($b->start_time, 0, 5);
                 $dbBookingEnd = substr($b->end_time, 0, 5);
 
@@ -1177,28 +1171,25 @@ public function getAvailableTimeSlots(Request $request)
    
    public function destroy(Request $request, Schedule $schedule)
     {
-        // 🎯 即使 booking 已经被别人在 /bookings 页面删过了（幽灵状态），也要安全清理
+
         if (!empty($schedule->booking_id)) {
             $linkedBooking = \App\Models\Booking::find($schedule->booking_id);
             if ($linkedBooking) {
                 $linkedBooking->delete();
             }
-            // 如果 Booking 已是幽灵（find 返回 null），跳过，直接删 Schedule 本身
+
         }
 
-        // 暂存我们需要带回去的过滤器参数（优先从请求中拿，没有就从小模型里推导作兜底）
         $date  = $request->input('redirect_date', $schedule->date);
         $labId = $request->input('redirect_lab_id', $schedule->lab_id);
 
         $schedule->delete();
 
-        // 🎯 核心修复：聪明地构建重定向 URL，不再无脑 back() 炸出 404
         $queryParams = [];
         if (!empty($date)) {
             $queryParams['date'] = $date;
         }
 
-        // 构造 view_target，完美恢复用户之前选好的机房过滤器
         if (!empty($labId)) {
             $queryParams['view_target'] = 'lab_' . $labId;
         } elseif ($request->has('view_target')) {

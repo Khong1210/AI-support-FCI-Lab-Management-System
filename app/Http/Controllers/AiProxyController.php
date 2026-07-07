@@ -51,11 +51,11 @@ class AiProxyController extends Controller
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         try {
-            // 🌟 核心修正：將 Http:: 改為 Http::withoutVerifying()，直接物理超度 SSL 證書錯誤！
+
             $resp = Http::withoutVerifying()
            ->withOptions([
-                'verify' => false,      // 強制關閉 SSL 驗證
-                'timeout' => 30,        // 防止超時
+                'verify' => false,
+                'timeout' => 30,
             ])
             ->withHeaders([
                 'Content-Type' => 'application/json',
@@ -75,7 +75,6 @@ class AiProxyController extends Controller
                     $extracted = $respJson['candidates'][0]['content']['parts'][0]['text'];
                 }
 
-                // 備用路徑提取
                 if ($extracted === null && !empty($respJson['output']['text'] ?? null)) {
                     $extracted = $respJson['output']['text'];
                 }
@@ -85,7 +84,6 @@ class AiProxyController extends Controller
                 $extracted = $resp->body();
             }
 
-            // 🌟 配合你剛剛改好的前端，直接回傳純文字
             return response($extracted, 200)->header('Content-Type', 'text/plain');
 
         } catch (\Exception $e) {

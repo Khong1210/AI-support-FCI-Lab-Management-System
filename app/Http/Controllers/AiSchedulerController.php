@@ -248,7 +248,7 @@ class AiSchedulerController extends Controller
                     foreach ($eligibleLabs as $lab) {
                         if (!isset($occupied[$lab][$day])) continue;
                         
-                        // 抓取该实验室该天所有长条状的 raw 空闲区间
+
                         $windows = $findWindows($lab, $day, $minMinutes);
                         
                         foreach ($windows as $w) {
@@ -258,7 +258,6 @@ class AiSchedulerController extends Controller
                             for ($currentStart = $windowStart; $currentStart + $minMinutes <= $windowEnd; $currentStart += 60) {
                                 $currentEnd = $currentStart + $minMinutes;
 
-                                // 上下午偏好过滤
                                 $slotHour = (int)floor($currentStart / 60);
                                 if ($timePref === 'morning' && $slotHour >= 12) continue;
                                 if ($timePref === 'afternoon' && $slotHour < 12) continue;
@@ -294,12 +293,11 @@ class AiSchedulerController extends Controller
                 }));
 
                 // Sort: Monday→Friday, then morning→afternoon
-                // ─── 架构师优化：智能打散 + 融合你原版的周天排序逻辑 ───
+
                 if (!empty($options)) {
                     $diversifiedOptions = [];
                     $insertedCountPerDay = [];
 
-                    // 1. 【防霸榜策略】遍历切出来的格子，每天最多只先提取 2 个代表性的黄金坑位
                     foreach ($options as $opt) {
                         $day = $opt['day'];
                         if (!isset($insertedCountPerDay[$day])) {
@@ -312,7 +310,6 @@ class AiSchedulerController extends Controller
                         }
                     }
 
-                    // 2. 如果打散后总总选项太少，用剩余没选上的格子补齐
                     if (count($diversifiedOptions) < 6) {
                         foreach ($options as $opt) {
                             if (!in_array($opt, $diversifiedOptions)) {
@@ -322,13 +319,11 @@ class AiSchedulerController extends Controller
                         }
                     }
 
-                    // 3. 🌟 完美融合你原版的排序权重：先按你定义的 $weekdays 数组顺序排星期，星期相同再排时间
                     usort($diversifiedOptions, function($a, $b) use ($weekdays) {
                         return (array_search($a['day'], $weekdays) - array_search($b['day'], $weekdays))
                             ?: ($a['start'] - $b['start']);
                     });
 
-                    // 4. 放宽视野：截取前 10 个最优、最散的全国全家桶选单喂给 AI 或前端
                     $options = array_slice($diversifiedOptions, 0, 10);
                 }
 

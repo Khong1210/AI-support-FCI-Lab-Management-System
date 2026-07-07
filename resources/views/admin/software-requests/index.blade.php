@@ -63,10 +63,9 @@
                             @endif
                         </td>
 
-                        {{-- 🎯 2. 核心改动：新增这一列机房显示/选择 --}}
                         <td>
                             @if($req->status == 1)
-                                {{-- 未审批：显示 Dropdown，并指定属于上面对应的表单 form attribute --}}
+
                                 <select name="lab_id" form="approve-form-{{ $req->id }}" class="form-select form-select-sm" style="max-width: 180px;" required>
                                     <option value="" disabled selected>Select Lab...</option>
                                     @foreach($labs as $lab)
@@ -74,13 +73,13 @@
                                     @endforeach
                                 </select>
                             @elseif($req->status == 2 && $req->software)
-                                {{-- 已审批：直接通过关系链读取真实的机房名字 --}}
+
                                 <span class="fw-semibold text-dark">
                                     <i class="fas fa-door-open text-secondary mr-1"></i>
                                     {{ $req->software->laboratory->lab_name ?? 'Lab ' . $req->software->lab_id }}
                                 </span>
                             @else
-                                {{-- 拒绝或其他情况 --}}
+
                                 <span class="text-muted">—</span>
                             @endif
                         </td>
@@ -89,12 +88,11 @@
                         <td>
                             <div class="d-flex justify-content-center align-items-center gap-1">
                                 @if($req->status == 1)
-                                    {{-- 🎯 3. Approve 按钮：点击时直接触发对应的表单 --}}
+
                                     <button type="submit" form="approve-form-{{ $req->id }}" class="btn btn-sm btn-success" title="Approve & Add to Inventory">
                                         <i class="fas fa-check"></i> Approve
                                     </button>
 
-                                    {{-- Reject 按钮 --}}
                                     <form action="{{ route('software-requests.reject', $req->id) }}" method="POST" class="d-inline">
                                         @csrf
                                         <button class="btn btn-sm btn-danger" title="Reject">
@@ -105,7 +103,6 @@
                                     <span class="text-muted" style="font-size: 12px;">— No actions —</span>
                                 @endif
 
-                                {{-- Delete 按钮 --}}
                                 <form action="{{ route('software-requests.destroy', $req->id) }}" method="POST" class="d-inline delete-form">
                                     @csrf
                                     @method('DELETE')

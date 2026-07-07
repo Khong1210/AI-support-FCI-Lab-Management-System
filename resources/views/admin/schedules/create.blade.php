@@ -245,7 +245,7 @@
     function initializeTimeOptions() {
         const startTimeSelect = document.getElementById('start-time-select');
         if (!startTimeSelect) return;
-        // 如果是第一次加载，先填满基础数据
+
         if (startTimeSelect.options.length <= 1) {
             for (let h = 8; h <= 18; h++) {
                 const time = (h < 10 ? '0' : '') + h + ':00';
@@ -293,7 +293,6 @@
         hidden.value = dayName;
     }
 
-    // ========== 核心：时间冲突检测与下拉框变灰 ==========
     function updateStartTimeOptions() {
         const date = document.getElementById('schedule-date').value;
         const labId = document.getElementById('lab-id-select').value;
@@ -302,7 +301,6 @@
 
         if (!date || !labId || !startTimeSelect) return;
 
-        // 暂存用户当前选中的值
         const currentStartValue = startTimeSelect.value;
 
         fetch(`/schedules/check-occupied-slots?date=${date}&laboratory_id=${labId}`)
@@ -313,22 +311,22 @@
                 startTimeSelect.innerHTML = '<option value="">Select Time</option>';
                 
                 for (let h = 8; h <= 17; h++) {
-                    const time = (h < 10 ? '0' : '') + h + ':00'; // 生成 "08:00"
+                    const time = (h < 10 ? '0' : '') + h + ':00';
                     const opt = document.createElement('option');
                     opt.value = time;
                     opt.textContent = time;
                     
-                    // 🎯 修复核心1：超级强悍、多字段多格式兼容的碰撞算法
+
                     const isOccupied = occupiedSlots.some(slot => {
                         if (!slot) return false;
                         
-                        // 兼容后端可能返回的各种字段名 (start_time 或 start)
+
                         let rawStart = slot.start_time || slot.start;
                         let rawEnd = slot.end_time || slot.end;
                         
                         if (!rawStart || !rawEnd) return false;
                         
-                        // 安全截取前 5 位 (例如 "13:00:00" -> "13:00", "13:00" -> "13:00")
+
                         const sTime = rawStart.length >= 5 ? rawStart.substring(0, 5) : rawStart;
                         const eTime = rawEnd.length >= 5 ? rawEnd.substring(0, 5) : rawEnd;
                         
@@ -341,7 +339,7 @@
                         opt.textContent = time + ' (occupied)';
                     }
                     
-                    // 恢复之前的选择
+
                     if (time === currentStartValue) {
                         opt.selected = true;
                     }
@@ -349,7 +347,6 @@
                     startTimeSelect.appendChild(opt);
                 }
 
-                // 联动洗牌【结束时间】
                 if (endSelect) {
                     const chosenStart = startTimeSelect.value;
                     const endCurrentValue = endSelect.value;
@@ -416,7 +413,6 @@
         .catch(() => []);
     }
 
-    // ========== 动态控制不同模式字段显示/隐藏 ==========
     function handleFormFormattingBasedOnType() {
         const typeSelect = document.getElementById('schedule-type-select');
         
@@ -517,8 +513,7 @@
                 startSelect.classList.add('readonly-select-override');
                 endSelect.classList.add('readonly-select-override');
             } else {
-                // 🎯 关键修复：不再暴力清空用户已选的时间值，避免 DOM 死锁
-                // 仅在初始进入 maintenance 模式或值无效时才复位（空值保护由表单的 required 属性保证）
+
                 startSelect.required = true;
                 endSelect.required = true;
                 
@@ -546,7 +541,6 @@
         }
     }
 
-    // ========== AJAX 错误控制（绝不改变DOM，不破坏排版） ==========
     function clearFieldErrors() {
         document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
         
@@ -637,7 +631,6 @@
         });
     }
 
-    // ========== DATE CONSTRAINTS: 动态锁定日历上下限 ==========
     function updateDateConstraints() {
         const typeSelect = document.getElementById('schedule-type-select');
         const semesterSelect = document.getElementById('semester-id-select');
@@ -647,13 +640,12 @@
 
         const currentType = typeSelect.value;
 
-        // 🚀【修复漏洞 1】如果是 Booking 或 Maintenance 模式，卡死今天以前的日期不能选
         if (currentType === 'booking' || currentType === 'maintenance') {
             dateInput.min = new Date().toISOString().split('T')[0];
             if (currentType !== 'enroll') {
                 dateInput.removeAttribute('max');
             }
-        // 🚀【修复漏洞 2】如果是 Enroll 模式，根据所选学期的合法时间轴自动切割日历上下限限制
+
         } else if (currentType === 'enroll') {
             dateInput.removeAttribute('min');
             if (semesterSelect && semesterSelect.value) {
@@ -726,7 +718,6 @@
             });
         }
 
-        // 🚀【新增关键监听】当用户改变开始时间时，立刻触发布局重组，让非法的结束时间即时变灰
         if (startSelect) {
             startSelect.addEventListener('change', function() {
                 handleFormFormattingBasedOnType();

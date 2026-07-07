@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 
-
 class BookingRequestController extends Controller
 {
     // -------------------------------------------------------------------------
@@ -102,35 +101,32 @@ class BookingRequestController extends Controller
     // 1. Blocked by Schedules (regular classes + admin-created bookings/maintenance)
     $scheduleSlots = \App\Models\Schedule::where('lab_id', $labId)
         ->where(function ($q) use ($dayOfWeek, $date, $semesterId) {
-            // 条件 a: 单次单天事件（必须匹配精确日期）
+
             $q->where(function ($sub) use ($date) {
                 $sub->where('is_recurring', false)
                     ->whereDate('date', $date);
             })
-            // 条件 b: 循环课（匹配星期几）
+
             ->orWhere(function ($sub) use ($dayOfWeek, $semesterId) {
                 $sub->where('is_recurring', true)
                     ->where('day_of_week', $dayOfWeek);
                 
-                // 如果系统内能查到当前处于哪个学期，则同时校验学期匹配
-                // 如果查不到或数据库没绑定，为了安全起见（防止漏掉课表），可以通过可选逻辑进行限制
+
                 if ($semesterId) {
                     $sub->where(function($inner) use ($semesterId) {
                         $inner->where('semester_id', $semesterId)
-                              ->orWhereNull('semester_id'); // 兼容没有写明学期的全局循环课
+                              ->orWhereNull('semester_id');
                     });
                 }
             });
         })
         ->get(['start_time', 'end_time']);
 
-    // 2. Blocked by Pending Booking Requests (方案A：还没决定的请求也直接视为占用)
     $pendingRequests = \App\Models\BookingRequest::where('lab_id', $labId)
         ->whereDate('date', $date)
         ->where('status', 'pending')
         ->get(['start_time', 'end_time']);
 
-    // 3. 合并数据流并规范化格式
     $occupied = collect();
 
     foreach ($scheduleSlots as $item) {
@@ -147,7 +143,6 @@ class BookingRequestController extends Controller
         ]);
     }
 
-    // 去重并重新排索引，打包成干净的 JSON 返回给前端
     return response()->json($occupied->unique()->values());
 }
 /**

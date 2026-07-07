@@ -38,13 +38,12 @@ class SoftwareRequestController extends Controller
         'version'       => 'nullable|string|max:20',
     ]);
 
-    // 🎯 完美打包：用 " @v" 将名字和版本拼在一起，存入唯一能用的 version 字段
     $packedString = $data['software_name'] . ($data['version'] ? ' @v' . $data['version'] : '');
 
     SoftwareRequest::create([
         'user_id'     => Auth::id(),
-        'software_id' => 0, // 🌟 塞入我们建好的 0 号占位符，防止 NOT NULL 报错
-        'version'     => substr($packedString, 0, 255), // 确保不冲破字段长度
+        'software_id' => 0,
+        'version'     => substr($packedString, 0, 255),
         'status'      => SoftwareRequest::STATUS_PENDING,
     ]);
 
@@ -77,9 +76,9 @@ class SoftwareRequestController extends Controller
     /**
      * ───  APPROVE: Shadow data → real inventory (one-click pipeline)  ───
      */
-  public function approve(Request $request, string $id) // 🎯 记得注入 Request
+  public function approve(Request $request, string $id)
     {
-        // 验证传过来的机房 ID 是否合法
+
         $request->validate([
             'lab_id' => 'required|exists:laboratories,id'
         ]);
@@ -102,7 +101,7 @@ class SoftwareRequestController extends Controller
         }
 
         $newSoftware = Software::create([
-            'lab_id'        => $request->input('lab_id'), // 🎯 动态读取前端选中的实验室 ID
+            'lab_id'        => $request->input('lab_id'),
             'software_name' => $softwareName,
             'version'       => $softwareVersion,
             'expiry_date'   => '2030-12-31', 
