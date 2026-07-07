@@ -255,27 +255,22 @@ class AiSchedulerController extends Controller
                             $windowStart = $w['start_min'];
                             $windowEnd   = $w['end_min'];
 
-                            // ─── 滑动窗口切片核心 ───
-                            // 以 30 分钟为步长，在长条空闲区间内切出刚好符合课程时长($minMinutes)的小格子
-                            for ($currentStart = $windowStart; $currentStart + $minMinutes <= $windowEnd; $currentStart += 30) {
+                            for ($currentStart = $windowStart; $currentStart + $minMinutes <= $windowEnd; $currentStart += 60) {
                                 $currentEnd = $currentStart + $minMinutes;
 
-                                // ─── 完美修复：上下午偏好精准过滤 ───
-                                // 以前拿大区间的起点判断，现在拿切出来的每一个具体格子起点判断
+                                // 上下午偏好过滤
                                 $slotHour = (int)floor($currentStart / 60);
                                 if ($timePref === 'morning' && $slotHour >= 12) continue;
                                 if ($timePref === 'afternoon' && $slotHour < 12) continue;
 
-                                // 换算为标准的小时与分钟
                                 $startH = intdiv($currentStart, 60);
                                 $startM = $currentStart % 60;
                                 $endH   = intdiv($currentEnd, 60);
                                 $endM   = $currentEnd % 60;
 
-                                // 生成供 AI 选择的精细化 Label (例如 "08:00 AM - 10:00 AM")
                                 $label = \Carbon\Carbon::createFromTime($startH, $startM)->format('h:i A')
-                                       . ' - '
-                                       . \Carbon\Carbon::createFromTime($endH, $endM)->format('h:i A');
+                                    . ' - '
+                                    . \Carbon\Carbon::createFromTime($endH, $endM)->format('h:i A');
 
                                 $options[] = [
                                     'lab'   => $lab,
@@ -299,10 +294,43 @@ class AiSchedulerController extends Controller
                 }));
 
                 // Sort: Monday→Friday, then morning→afternoon
-                usort($options, fn($a,$b) =>
-                    array_search($a['day'],$weekdays) - array_search($b['day'],$weekdays)
-                    ?: $a['start'] - $b['start']
-                );
+                // ─── 架构师优化：智能打散 + 融合你原版的周天排序逻辑 ───
+                if (!empty($options)) {
+                    $diversifiedOptions = [];
+                    $insertedCountPerDay = [];
+
+                    // 1. 【防霸榜策略】遍历切出来的格子，每天最多只先提取 2 个代表性的黄金坑位
+                    foreach ($options as $opt) {
+                        $day = $opt['day'];
+                        if (!isset($insertedCountPerDay[$day])) {
+                            $insertedCountPerDay[$day] = 0;
+                        }
+                        
+                        if ($insertedCountPerDay[$day] < 2) {
+                            $diversifiedOptions[] = $opt;
+                            $insertedCountPerDay[$day]++;
+                        }
+                    }
+
+                    // 2. 如果打散后总总选项太少，用剩余没选上的格子补齐
+                    if (count($diversifiedOptions) < 6) {
+                        foreach ($options as $opt) {
+                            if (!in_array($opt, $diversifiedOptions)) {
+                                $diversifiedOptions[] = $opt;
+                            }
+                            if (count($diversifiedOptions) >= 12) break;
+                        }
+                    }
+
+                    // 3. 🌟 完美融合你原版的排序权重：先按你定义的 $weekdays 数组顺序排星期，星期相同再排时间
+                    usort($diversifiedOptions, function($a, $b) use ($weekdays) {
+                        return (array_search($a['day'], $weekdays) - array_search($b['day'], $weekdays))
+                            ?: ($a['start'] - $b['start']);
+                    });
+
+                    // 4. 放宽视野：截取前 10 个最优、最散的全国全家桶选单喂给 AI 或前端
+                    $options = array_slice($diversifiedOptions, 0, 10);
+                }
 
                 // Limit to TOP 3 options to keep the menu crisp
                 $topOptions = array_slice($options, 0, 3);
