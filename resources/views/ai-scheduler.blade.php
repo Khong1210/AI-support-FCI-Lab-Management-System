@@ -275,11 +275,20 @@
     const lecturers = @json($lecturers ?? []);
     let currentSemesterId = @json($currentSemesterId ?? 1);
 
-    // 🔍【诊断节点1】打印后端传来的原始数据结构，确认真实键名
-    console.log("【检查原始数据】schedules 第一条：", schedules[0]);
-    console.log("【检查原始数据】laboratories 第一条：", laboratories[0]);
+    // 🔍 [Diag Node 1] Inspect raw backend data structures on page load
+    console.log("=== [Diag Node 1] Raw Data Inspection ===");
+    console.log("schedules array length:", schedules.length);
+    if (schedules.length > 0) {
+        console.log("First schedule full structure:", schedules[0]);
+    } else {
+        console.warn("WARNING: schedules array from backend is empty!");
+    }
+    if (laboratories.length > 0) {
+        console.log("First laboratory full structure:", laboratories[0]);
+    }
 
     let schedulingQueue = [];
+    let currentOptimizedSlots = [];   // 🔒 stores AI result for batch_slots context
     let workflowState = {
         step1Locked: false,
         step2Complete: false,
@@ -302,22 +311,14 @@
     // ========================================================
     semesterSelector.addEventListener('change', function() {
         if (this.value) {
-            // Auto-lock immediately upon selection
             workflowState.step1Locked = true;
             currentSemesterId = this.value;
-            
-            // Lock semester selector
             this.disabled = true;
             resetSemesterBtn.style.display = 'inline-block';
-            
-            // Update step indicator
             document.querySelector('#step1 .step-indicator').classList.add('completed');
-            
-            // Enable Step 2
             enableStep('step2');
             document.getElementById('ai_course_id').disabled = false;
         } else {
-            // Value is empty (e.g. triggered by Reset) — release Step 1 lock
             workflowState.step1Locked = false;
             document.querySelector('#step1 .step-indicator').classList.remove('completed');
             document.querySelector('#step1 .step-indicator').classList.add('active');
@@ -330,8 +331,6 @@
                 return;
             }
         }
-        
-        // Reset workflow state
         workflowState = {
             step1Locked: false,
             step2Complete: false,
@@ -339,11 +338,8 @@
             step4Complete: false,
             step5Complete: false
         };
-        
         schedulingQueue = [];
         renderQueueTable();
-        
-
         semesterSelector.querySelectorAll('option').forEach(opt => {
             opt.removeAttribute('selected');
             opt.selected = false;
@@ -352,25 +348,16 @@
         semesterSelector.selectedIndex = 0;
         semesterSelector.disabled = false;
         resetSemesterBtn.style.display = 'none';
-        
-        // Dispatch native 'change' so the workflow state machine
-        // reacts to the now-empty value and releases Step 1 lock
         semesterSelector.dispatchEvent(new Event('change', { bubbles: true }));
-        
-        // Reset all step indicators: restore step1 as active, all others neutral
         document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
             indicator.classList.remove('completed', 'active');
             if (index === 0) indicator.classList.add('active');
         });
-        
-        // Lock all steps except step 1
         disableStep('step2');
         disableStep('step3');
         disableStep('step4');
         disableStep('step5');
         disableStep('step6');
-        
-        // Disable all downstream inputs
         document.getElementById('ai_course_id').disabled = true;
         document.querySelectorAll('input[name="core_constraint_type"]').forEach(r => r.disabled = true);
         document.getElementById('ai_software_name').disabled = true;
@@ -378,7 +365,6 @@
         document.getElementById('ai_lab_id').disabled = true;
         document.getElementById('ai_time_preference').disabled = true;
         addToQueueButton.disabled = true;
-        
         responseContainer.innerHTML = '<p class="text-muted mb-0">Staged rows must be compiled inside the queue. Trigger the optimization executor above to compute global timetable alternatives.</p>';
     });
 
@@ -389,8 +375,6 @@
         if (this.value) {
             workflowState.step2Complete = true;
             document.querySelector('#step2 .step-indicator').classList.add('completed');
-            
-            // Enable Step 3
             enableStep('step3');
             document.querySelectorAll('input[name="core_constraint_type"]').forEach(radio => {
                 radio.disabled = false;
@@ -405,8 +389,6 @@
         radio.addEventListener('change', function() {
             workflowState.step3Complete = true;
             document.querySelector('#step3 .step-indicator').classList.add('completed');
-            
-            // Show appropriate wrapper
             document.querySelectorAll('.constraint-select-wrapper').forEach(wrapper => {
                 wrapper.classList.add('d-none');
             });
@@ -414,11 +396,7 @@
             if (targetWrapper) {
                 targetWrapper.classList.remove('d-none');
             }
-            
-            // Enable Step 4
             enableStep('step4');
-            
-            // Enable the appropriate select
             if (this.value === 'software') {
                 document.getElementById('ai_software_name').disabled = false;
             } else if (this.value === 'hardware') {
@@ -432,60 +410,29 @@
     // ========================================================
     // STEP 4: SPECIFIC RESOURCE SELECTION
     // ========================================================
-    document.getElementById('ai_software_name').addEventListener('change', function() {
-        if (this.value) {
-            completeStep4();
-        }
-    });
-    
-    document.getElementById('ai_equipment_name').addEventListener('change', function() {
-        if (this.value) {
-            completeStep4();
-        }
-    });
-    
-    document.getElementById('ai_lab_id').addEventListener('change', function() {
-        if (this.value) {
-            completeStep4();
-        }
-    });
+    document.getElementById('ai_software_name').addEventListener('change', function() { if (this.value) completeStep4(); });
+    document.getElementById('ai_equipment_name').addEventListener('change', function() { if (this.value) completeStep4(); });
+    document.getElementById('ai_lab_id').addEventListener('change', function() { if (this.value) completeStep4(); });
 
     function completeStep4() {
         workflowState.step4Complete = true;
         document.querySelector('#step4 .step-indicator').classList.add('completed');
-        
-        // Enable Step 5 - "Full Day" is pre-selected default
         enableStep('step5');
         document.getElementById('ai_time_preference').disabled = false;
-        
-        // Auto-complete Step 5 + Step 6 simultaneously since "Full Day" is default
         workflowState.step5Complete = true;
         document.querySelector('#step5 .step-indicator').classList.add('completed');
-        
-        // Enable Step 6 (Add to Queue) immediately — no manual Step 5 interaction needed
         enableStep('step6');
         addToQueueButton.disabled = false;
     }
 
-    // ========================================================
-    // STEP 5: TIME PREFERENCE SELECTION (Optional - "Full Day" is default)
-    // ========================================================
-    document.getElementById('ai_time_preference').addEventListener('change', function() {
-        completeStep5();
-    });
-
+    document.getElementById('ai_time_preference').addEventListener('change', function() { completeStep5(); });
     function completeStep5() {
         workflowState.step5Complete = true;
         document.querySelector('#step5 .step-indicator').classList.add('completed');
-        
-        // Enable Step 6
         enableStep('step6');
         addToQueueButton.disabled = false;
     }
 
-    // ========================================================
-    // HELPER FUNCTIONS FOR STEP MANAGEMENT
-    // ========================================================
     function enableStep(stepId) {
         const step = document.getElementById(stepId);
         step.classList.remove('step-locked');
@@ -500,9 +447,6 @@
         step.querySelector('.step-indicator').classList.remove('active', 'completed');
     }
 
-    // ========================================================
-    // LOGIC: RENDER INTERACTIVE QUEUE DATA ROWS TO UI TABLE
-    // ========================================================
     function renderQueueTable() {
         if (schedulingQueue.length === 0) {
             queueTableBody.innerHTML = `<tr><td colspan="5" class="text-muted p-4">No arrangements staged yet. Configure left parameters and queue up courses.</td></tr>`;
@@ -510,10 +454,8 @@
             analyzeButton.disabled = true;
             return;
         }
-
         queueCounter.innerText = `${schedulingQueue.length} Course(s) Queued`;
         analyzeButton.disabled = false;
-
         queueTableBody.innerHTML = schedulingQueue.map((item, index) => {
             return `
                 <tr>
@@ -531,23 +473,13 @@
         }).join('');
     }
 
-    // ========================================================
-    // EVENT: ADD SELECTIONS CONTEXT INTO THE SCHEDULING CARTS
-    // ========================================================
     addToQueueButton.addEventListener('click', () => {
         const courseSelect = document.getElementById('ai_course_id');
         const selectedCourseId = courseSelect.value;
         const selectedCourseName = courseSelect.options[courseSelect.selectedIndex]?.getAttribute('data-name') || '';
 
-        if (!selectedCourseId) {
-            alert(" Please specify a target Course registry row before saving.");
-            return;
-        }
-
-        if (schedulingQueue.some(item => item.courseId === selectedCourseId)) {
-            alert(" This course is already loaded inside the execution queue deck.");
-            return;
-        }
+        if (!selectedCourseId) { alert(" Please specify a target Course registry row before saving."); return; }
+        if (schedulingQueue.some(item => item.courseId === selectedCourseId)) { alert(" This course is already loaded inside the execution queue deck."); return; }
 
         const constraintType = document.querySelector('input[name="core_constraint_type"]:checked').value;
         let constraintValue = "";
@@ -569,8 +501,6 @@
         }
 
         const timePreference = document.getElementById('ai_time_preference').value;
-
-        // Capture lecturer data from the course <option> for AI Layer-2 collision detection
         const selectedOption = courseSelect.options[courseSelect.selectedIndex];
         const lecturerId   = selectedOption?.getAttribute('data-lecturer-id') || '';
         const lecturerName = selectedOption?.getAttribute('data-lecturer-name') || 'Unassigned';
@@ -587,36 +517,28 @@
         });
 
         renderQueueTable();
-        
-        // Reset form for next entry (but keep semester locked)
         courseSelect.value = "";
-        
-        // Reset steps 2-6 for next course
         workflowState.step2Complete = false;
         workflowState.step3Complete = false;
         workflowState.step4Complete = false;
         workflowState.step5Complete = false;
         
-        // Reset step indicators (except step 1)
         document.querySelector('#step2 .step-indicator').classList.remove('completed');
         document.querySelector('#step3 .step-indicator').classList.remove('completed');
         document.querySelector('#step4 .step-indicator').classList.remove('completed');
         document.querySelector('#step5 .step-indicator').classList.remove('completed');
         document.querySelector('#step6 .step-indicator').classList.remove('completed');
         
-        // Disable steps 3-6
         disableStep('step3');
         disableStep('step4');
         disableStep('step5');
         disableStep('step6');
         
-        // Uncheck radios
         document.querySelectorAll('input[name="core_constraint_type"]').forEach(r => {
             r.checked = false;
             r.disabled = true;
         });
         
-        // Reset and disable selects
         document.getElementById('ai_software_name').value = "";
         document.getElementById('ai_software_name').disabled = true;
         document.getElementById('ai_equipment_name').value = "";
@@ -627,12 +549,10 @@
         document.getElementById('ai_time_preference').disabled = true;
         addToQueueButton.disabled = true;
         
-        // Hide all wrappers
         document.querySelectorAll('.constraint-select-wrapper').forEach(w => w.classList.add('d-none'));
         document.getElementById('wrapper_software').classList.remove('d-none');
     });
 
-    // EVENT: REMOVE SPECIFIC ELEMENT OUT OF THE STATE DECK
     queueTableBody.addEventListener('click', (e) => {
         const deleteButton = e.target.closest('.delete-queue-btn');
         if (deleteButton) {
@@ -642,12 +562,9 @@
         }
     });
 
-    // Clear Everything Trigger
     clearQueueButton.addEventListener('click', () => {
         if (schedulingQueue.length > 0) {
-            if (!confirm(' Clear all queued courses?')) {
-                return;
-            }
+            if (!confirm(' Clear all queued courses?')) return;
         }
         schedulingQueue = [];
         renderQueueTable();
@@ -677,33 +594,15 @@
                 - Target Time Slot Interval Strategy: ${item.timePreference}`;
             }).join('\n\n');
 
-            // Frontend sends ONLY the raw course demand list.
-            // All scheduling rules, existing timetable data, lab/lecturer mappings,
-            // and collision constraints are handled EXCLUSIVELY by the backend System Prompt
-            // to prevent stale-data interference and contradictory rule sets from confusing the AI.
-            const totalGlobalContext = `SEMESTER_ID: ${currentSemesterId}
-
-                [COURSE REQUIREMENT DEMAND BLOCKS]
-                ${compiledRequirementsText};
-
-                [CRITICAL MATRIX DISTRIBUTION CONSTRAINTS]
-                1. You MUST actively utilize the entire 5-day academic week (Monday, Tuesday, Wednesday, Thursday, Friday).
-                2. DO NOT cluster or bias rows into Monday through Wednesday. Thursday and Friday MUST be allocated to ensure even load balancing across available lab assets.
-                3. If you do not distribute courses across all 5 days, the administration system will reject the matrix. Make sure Thursday and Friday have explicit rows assigned.`;
+            const totalGlobalContext = `SEMESTER_ID: ${currentSemesterId}\n\n[COURSE REQUIREMENT DEMAND BLOCKS]\n${compiledRequirementsText}`;
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 120000);
 
             const res = await fetch("{{ route('ai-scheduler.generate') }}", {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({ 
-                    prompt: totalGlobalContext,
-                    semester_id: currentSemesterId
-                }),
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                body: JSON.stringify({ prompt: totalGlobalContext, semester_id: currentSemesterId }),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
@@ -717,16 +616,39 @@
             rawText = rawText.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
             const optimizedSlots = JSON.parse(rawText);
             
+            // 🔒 Store for batch_siblings collision shield
+            currentOptimizedSlots = optimizedSlots;
+
+            // 🔍 [Diag Node 2] Frontend post-check — scan AI-returned matrix for internal collisions
+            console.log("=== [Diag Node 2] Scanning AI-Returned Matrix ===");
+            {
+                const seen = new Map();
+                for (let i = 0; i < optimizedSlots.length; i++) {
+                    const slot = optimizedSlots[i];
+                    const day  = slot.day_of_week ?? slot.day ?? 'UNKNOWN_DAY';
+                    const tw   = slot.time_window ?? slot.time_slot ?? 'UNKNOWN_TIME';
+                    const lab  = slot.lab_name ?? slot.laboratory_name ?? 'UNKNOWN_LAB';
+                    const key  = `${day}||${tw}||${lab}`;
+                    
+                    if (seen.has(key)) {
+                        const prevIdx = seen.get(key);
+                        console.error(
+                            `[AI COLLISION ALERT] Lab "${lab}" double-booked at ${day} ${tw}!\n` +
+                            `  Collision A (index=${prevIdx}):`, optimizedSlots[prevIdx], `\n` +
+                            `  Collision B (index=${i}):      `, slot
+                        );
+                    } else {
+                        seen.set(key, i);
+                    }
+                }
+                console.log(`[AI Matrix Scan Complete] Checked ${optimizedSlots.length} records, unique slots: ${seen.size}`);
+            }
+            
             renderResultTable(optimizedSlots, "AI Concurrent De-Collision Matrix Generated", "success");
 
         } catch (error) {
             console.warn("DeepSeek API unavailable – activating intelligent local fallback engine.", error);
-            // ========================================================
-            // INTELLIGENT LOCAL FALLBACK ANTI-COLLISION ENGINE
-            // Runs when DeepSeek API is unreachable, out of quota, or
-            // returns malformed data. Uses existing schedules data plus
-            // software/equipment/lab mappings to generate conflict-free slots.
-            // ========================================================
+            
             const fallbackSlots = [];
             const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
             const allTimeSlots = [
@@ -736,25 +658,21 @@
                 { label: "04:00 PM - 06:00 PM", start: "16:00:00", end: "18:00:00", shift: "afternoon" }
             ];
 
-            // ── Helper: check if a (lab, day, start, end) conflicts with existing schedules ──
-                    // ── Helper: 检查是否与数据库已有课表冲突 ──
-            function hasConflict(labName, day, slotStart, slotEnd, currentLecturerId, currentCourseId) {
+            // ── Helper: Anti-collision check against existing DB schedules ──
+            function hasConflict(labName, day, slotStart, slotEnd) {
+                console.log(`[Diag Node 3] hasConflict checking [${labName} - ${day}]...`);
                 return schedules.some(s => {
+                    // Critical check: does 's' actually have laboratory_name and day_of_week keys?
+                    if (s.laboratory_name === undefined || s.day_of_week === undefined) {
+                        console.error("[FATAL] hasConflict detected missing fields in schedules object!",
+                                      "Expected keys 'laboratory_name' and 'day_of_week', actual keys:", Object.keys(s), "Full object:", s);
+                    }
+                    if (s.laboratory_name !== labName) return false;
                     if (s.day_of_week !== day) return false;
-                    
-                    // 1. 机房冲突检测
-                    const isLabConflict = (s.laboratory_name === labName && slotStart < s.end_time && slotEnd > s.start_time);
-                    
-                    // 2. 讲师冲突检测（防止同一个讲师同一时间在两个机房上课）
-                    const isLecturerConflict = (s.lecturer_id && currentLecturerId && s.lecturer_id == currentLecturerId && slotStart < s.end_time && slotEnd > s.start_time);
-                    
-                    // 3. 相同课程冲突检测（防止同一门课同一时间上两节）
-                    const isCourseConflict = (s.course_id && currentCourseId && s.course_id == currentCourseId && slotStart < s.end_time && slotEnd > s.start_time);
-
-                    return isLabConflict || isLecturerConflict || isCourseConflict;
+                    return slotStart < s.end_time && slotEnd > s.start_time;
                 });
             }
-            // ── Helper: check if a lab has the required asset ──
+
             function labHasAsset(labName, constraintType, constraintValue) {
                 if (constraintType === 'software') {
                     return softwares.some(sw => sw.software_name === constraintValue && sw.lab_room === labName);
@@ -762,69 +680,29 @@
                 if (constraintType === 'hardware') {
                     return equipments.some(eq => eq.equipment_name === constraintValue && eq.lab_room === labName);
                 }
-                // Fixed lab: must match exactly
                 if (constraintType === 'laboratory') return labName === constraintValue;
                 return true;
             }
 
-            // Track assignments within this batch to prevent internal queue collisions
             const batchAssignments = [];
 
             schedulingQueue.forEach((queueItem) => {
                 let assigned = null;
                 const preferredShift = queueItem.timePreference;
-
-                // Filter labs by asset requirement
-                const eligibleLabs = laboratories.filter(l =>
-                    labHasAsset(l.lab_name, queueItem.constraintType, queueItem.constraintValue)
-                );
-
-                // If no eligible labs found, fallback to all labs with warning
+                const eligibleLabs = laboratories.filter(l => labHasAsset(l.lab_name, queueItem.constraintType, queueItem.constraintValue));
                 const labsToTry = eligibleLabs.length > 0 ? eligibleLabs : laboratories;
-
-                // Filter time slots by shift preference
-                const slotsToTry = preferredShift === 'morning'
-                    ? allTimeSlots.filter(ts => ts.shift === 'morning')
-                    : preferredShift === 'afternoon'
-                        ? allTimeSlots.filter(ts => ts.shift === 'afternoon')
-                        : allTimeSlots;
+                const slotsToTry = preferredShift === 'morning' ? allTimeSlots.filter(ts => ts.shift === 'morning') : preferredShift === 'afternoon' ? allTimeSlots.filter(ts => ts.shift === 'afternoon') : allTimeSlots;
 
                 searchLoop:
-                for (let attempt = 0; attempt < dayNames.length; attempt++) {
-                    // 【核心改进】每次循环时，对工作日按“当前已分配课程数量”升序排序
-                    // 哪天课最少，哪天就排在最前面，优先参与检索！
-                    const sortedDays = [...dayNames].sort((a, b) => {
-                        const countA = fallbackSlots.filter(s => s.day === a).length;
-                        const countB = fallbackSlots.filter(s => s.day === b).length;
-                        return countA - countB;
-                    });
-
-                    // 拿到当前最空闲的那一天
-                    const day = sortedDays[attempt];
-
+                for (const day of dayNames) {
                     for (const lab of labsToTry) {
                         for (const ts of slotsToTry) {
-                            // 检查数据库冲突
                             if (hasConflict(lab.lab_name, day, ts.start, ts.end)) continue;
-                            
-                            // 检查当前批次内部冲突
-                            const batchConflict = batchAssignments.some(ba =>
-                                ba.lab_name === lab.lab_name &&
-                                ba.day === day &&
-                                ts.start < ba.end && ts.end > ba.start
-                            );
+                            const batchConflict = batchAssignments.some(ba => ba.lab_name === lab.lab_name && ba.day === day && ts.start < ba.end && ts.end > ba.start);
                             if (batchConflict) continue;
-                            
-                            // 检查讲师冲突
-                            const lecturerConflict = batchAssignments.some(ba =>
-                                ba.lecturerId && queueItem.lecturerId &&
-                                ba.lecturerId === queueItem.lecturerId &&
-                                ba.day === day &&
-                                ts.start < ba.end && ts.end > ba.start
-                            );
+                            const lecturerConflict = batchAssignments.some(ba => ba.lecturerId && queueItem.lecturerId && ba.lecturerId === queueItem.lecturerId && ba.day === day && ts.start < ba.end && ts.end > ba.start);
                             if (lecturerConflict) continue;
 
-                            // 成功捕获最空闲工作日的干净时段
                             assigned = {
                                 course_id: queueItem.courseId,
                                 course_name: queueItem.courseName,
@@ -832,25 +710,15 @@
                                 lab_name: lab.lab_name,
                                 day: day,
                                 time_slot: `${day} ${ts.label}`,
-                                verification: eligibleLabs.length > 0
-                                    ? "✓ Engine — Dynamic Load Balanced"
-                                    : "⚠ Engine — Balanced via Asset Approximation",
-                                log: `Load-balancer routed into ${day} ${ts.label} (${lab.lab_name})`
+                                verification: eligibleLabs.length > 0 ? "✓ Fallback Engine — Asset Verified" : "⚠ Fallback Engine — Asset Unmatched (no eligible lab)",
+                                log: `Local heuristic assigned ${day} ${ts.label} at ${lab.lab_name}`
                             };
-                            
-                            batchAssignments.push({
-                                lab_name: lab.lab_name,
-                                day: day,
-                                start: ts.start,
-                                end: ts.end,
-                                lecturerId: queueItem.lecturerId
-                            });
+                            batchAssignments.push({ lab_name: lab.lab_name, day: day, start: ts.start, end: ts.end, lecturerId: queueItem.lecturerId });
                             break searchLoop;
                         }
                     }
                 }
 
-                // Absolute fallback if no slot found at all
                 if (!assigned) {
                     assigned = {
                         course_id: queueItem.courseId,
@@ -862,7 +730,6 @@
                         log: "Local engine could not find a non-colliding slot."
                     };
                 }
-
                 fallbackSlots.push(assigned);
             });
 
@@ -871,7 +738,7 @@
             noticeBanner.className = 'alert alert-warning alert-dismissible fade show mb-3';
             noticeBanner.innerHTML = `
                 <i class="fas fa-info-circle me-2"></i>
-                <strong>Notice:</strong> DeepSeek AI is currently unavailable. Results were generated by the built-in anti-collision fallback engine and may not be optimally distributed. Please review before enrolling.
+                <strong>Notice:</strong> DeepSeek AI is currently unavailable. Results were generated by the built-in anti-collision fallback engine.
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             `;
             responseContainer.insertBefore(noticeBanner, responseContainer.firstChild);
@@ -883,16 +750,8 @@
     // ========================================================
     // UI RENDER: GENERATE ALTERNATIVES MATRIX TABLE
     // ========================================================
-
-    // function renderResultTable(slotsArray, messageTitle, alertType) {
-    //     let tableHtml = `
-    //         <div class="alert alert-${alertType} d-flex align-items-center mb-3">
-    //             <i class="fas ${alertType === 'success' ? 'fa-check-double' : 'fa-exclamation-triangle'} me-2"></i> 
-    //             <div><strong>${messageTitle}:</strong> Matrix calculated successfully. Ready for active sync.</div>
-    //         </div>
     function renderResultTable(slotsArray, messageTitle, alertType) {
         let tableHtml = `
-           
             <div class="table-responsive">
                 <table class="table table-bordered table-striped table-hover align-middle text-center mt-2">
                     <thead class="table-dark">
@@ -910,12 +769,10 @@
         `;
 
         slotsArray.forEach((slot, idx) => {
-            // Resolve lab_id from lab_name in case the AI only sent the name
             let resolvedLabId = slot.lab_id;
             if (!resolvedLabId && laboratories.length > 0) {
                 resolvedLabId = laboratories.find(l => l.lab_name === slot.lab_name)?.id ?? null;
             }
-            // Fallback: if the queue knows this course, use its original lab constraint lab_id
             if (!resolvedLabId) {
                 const queueEntry = schedulingQueue.find(q => q.courseId == slot.course_id);
                 if (queueEntry && queueEntry.constraintType === 'laboratory') {
@@ -924,12 +781,7 @@
                 }
             }
 
-            // AI outputs "time_window" now; construct the full display slot from day_of_week + time_window
-            const displaySlot = slot.time_window
-                ? (slot.day_of_week ? `${slot.day_of_week} ${slot.time_window}` : slot.time_window)
-                : (slot.time_slot || 'N/A');
-
-            // AI outputs "conflict_log"; fallback to "verification" or "log" for backward compat
+            const displaySlot = slot.time_window ? (slot.day_of_week ? `${slot.day_of_week} ${slot.time_window}` : slot.time_window) : (slot.time_slot || 'N/A');
             const conflictInfo = slot.conflict_log || slot.verification || slot.log || 'N/A';
 
             tableHtml += `
@@ -953,11 +805,7 @@
             `;
         });
 
-        tableHtml += `
-                    </tbody>
-                </table>
-            </div>
-        `;
+        tableHtml += `</tbody></table></div>`;
         responseContainer.innerHTML = tableHtml;
     }
 
@@ -974,7 +822,6 @@
             const labName = bookBtn.getAttribute('data-lab-name');
             const timeSlot = bookBtn.getAttribute('data-slot');
 
-            // Parse time slot: "Monday 08:00 AM - 10:00 AM"
             const tokens = timeSlot.split(' ');
             const dayOfWeek = tokens[0];
             
@@ -998,10 +845,7 @@
             try {
                 const response = await fetch("{{ route('ai-scheduler.save') }}", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                    },
+                    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": "{{ csrf_token() }}" },
                     body: JSON.stringify({
                         semester_id: currentSemesterId,
                         day_of_week: dayOfWeek,
@@ -1009,7 +853,8 @@
                         end_time: endTime,
                         lab_id: labId,
                         course_id: courseId,
-                        schedule_type: 'enroll'
+                        schedule_type: 'enroll',
+                        batch_slots: JSON.stringify(currentOptimizedSlots)
                     })
                 });
 

@@ -161,7 +161,7 @@ class AiSchedulerController extends Controller
         }
 
         // ── 3. Scan each (lab, day) for continuous free windows ≥ minDuration ──
-        $findWindows = function($lab, $day, $minMinutes) use ($occupied, $dayOpen, $dayClose) {
+        $findWindows = function($lab, $day, $minMinutes) use (&$occupied, $dayOpen, $dayClose) {
             $windows = [];
             $start = null;
             for ($m = $dayOpen; $m <= $dayClose; $m++) {
@@ -292,43 +292,59 @@ class AiSchedulerController extends Controller
                     return true;
                 }));
 
-                // Sort: Monday→Friday, then morning→afternoon
-
+                // ═══════════════════════════════════════════════════════════
+                // 【RANDOMIZED DAY-DIVERSIFIED OPTION SELECTION】
+                // Instead of fixed sort Monday→Friday (which biases slots into
+                // Monday–Wednesday), we group by day, shuffle within each day,
+                // and re-merge with Friday first. Every "Run Batch AI Optimization"
+                // yields a different top-3 menu for each course, naturally
+                // spreading assignments across Thursday and Friday.
+                // ═══════════════════════════════════════════════════════════
                 if (!empty($options)) {
-                    $diversifiedOptions = [];
-                    $insertedCountPerDay = [];
-
+                    $groupedByDay = [];
                     foreach ($options as $opt) {
-                        $day = $opt['day'];
-                        if (!isset($insertedCountPerDay[$day])) {
-                            $insertedCountPerDay[$day] = 0;
-                        }
-                        
-                        if ($insertedCountPerDay[$day] < 2) {
-                            $diversifiedOptions[] = $opt;
-                            $insertedCountPerDay[$day]++;
-                        }
+                        $groupedByDay[$opt['day']][] = $opt;
                     }
-
-                    if (count($diversifiedOptions) < 6) {
-                        foreach ($options as $opt) {
-                            if (!in_array($opt, $diversifiedOptions)) {
-                                $diversifiedOptions[] = $opt;
+                    foreach ($groupedByDay as $day => $dayOptions) {
+                        shuffle($dayOptions);
+                        $groupedByDay[$day] = $dayOptions;
+                    }
+                    $finalOptions = [];
+                    $days = ['Friday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
+                    foreach ($days as $d) {
+                        if (isset($groupedByDay[$d])) {
+                            foreach ($groupedByDay[$d] as $opt) {
+                                $finalOptions[] = $opt;
                             }
-                            if (count($diversifiedOptions) >= 12) break;
                         }
                     }
-
-                    usort($diversifiedOptions, function($a, $b) use ($weekdays) {
-                        return (array_search($a['day'], $weekdays) - array_search($b['day'], $weekdays))
-                            ?: ($a['start'] - $b['start']);
-                    });
-
-                    $options = array_slice($diversifiedOptions, 0, 10);
+                    $options = $finalOptions;
                 }
 
                 // Limit to TOP 3 options to keep the menu crisp
                 $topOptions = array_slice($options, 0, 3);
+
+                // ═══════════════════════════════════════════════════════════
+                // 【SNAPSHOT ISOLATION FIX】Reserve only the single best option
+                // (topOptions[0]) of THIS course within the live &$occupied
+                // grid so subsequent courses see a dynamic menu where the
+                // most-likely-to-be-picked slot is already marked busy.
+                // This prevents the AI from receiving the same (lab, day, time)
+                // combination for multiple courses while keeping options 2 & 3
+                // open as safety valves.
+                // ═══════════════════════════════════════════════════════════
+                if (!empty($topOptions)) {
+                    $opt = $topOptions[0];
+                    $reserveLab   = $opt['lab'];
+                    $reserveDay   = $opt['day'];
+                    $reserveStart = $opt['start'];
+                    $reserveEnd   = $opt['end'];
+                    if (isset($occupied[$reserveLab][$reserveDay])) {
+                        for ($m = $reserveStart; $m < $reserveEnd; $m++) {
+                            $occupied[$reserveLab][$reserveDay][$m] = true;
+                        }
+                    }
+                }
 
                 if (empty($topOptions)) {
                     $menuSections[] = "⚠️  COURSE: {$courseName} (ID: {$courseId})\n"
@@ -465,12 +481,81 @@ class AiSchedulerController extends Controller
      */
     public function saveOptimizedSchedule(Request $request)
     {
+        // ═══════════════════════════════════════════════════════════════
+        // 【ENROLL DEBUG LOGGING】Dump everything received from frontend
+        // to verify whether batch_slots arrives correctly.
+        // ═══════════════════════════════════════════════════════════════
+        Log::info('ENROLL_DEBUG: === New Enroll Request ===');
+        Log::info('ENROLL_DEBUG: Raw batch_slots from request:', [$request->input('batch_slots')]);
+        Log::info('ENROLL_DEBUG: Current course being enrolled:', [
+            'course_id'   => $request->input('course_id'),
+            'lab_id'      => $request->input('lab_id'),
+            'day_of_week' => $request->input('day_of_week'),
+            'start_time'  => $request->input('start_time'),
+            'end_time'    => $request->input('end_time'),
+        ]);
+
         $semesterId = $request->input('semester_id');
         $dayOfWeek  = $request->input('day_of_week');  
         $startTime  = $request->input('start_time');   
         $endTime    = $request->input('end_time');     
         $labId      = $request->input('lab_id');
         $courseId   = $request->input('course_id');
+
+        // ═══════════════════════════════════════════════════════════════
+        // 【IN-MEMORY BATCH COLLISION SHIELD】Parse the full sibling matrix
+        // sent by the frontend so hasScheduleConflict can check against
+        // other unsaved rows from the same AI batch — preventing the
+        // "self-collision" scenario where row 1 saves, row 2 fails because
+        // it shares the same slot with row 1 but the user only finds out
+        // at save time.
+        // ═══════════════════════════════════════════════════════════════
+        $batchSlotsRaw = $request->input('batch_slots', '[]');
+        $batchSlots = is_string($batchSlotsRaw) ? json_decode($batchSlotsRaw, true) : $batchSlotsRaw;
+        $batchSlots = is_array($batchSlots) ? $batchSlots : [];
+
+        // Build in-memory accumulator from sibling rows (exclude current course)
+        $inMemorySlots = [];
+        $dayMapping = [
+            'Monday' => 1, 'Tuesday' => 2, 'Wednesday' => 3,
+            'Thursday' => 4, 'Friday' => 5, 'Saturday' => 6, 'Sunday' => 7,
+        ];
+        $allLabs = \App\Models\Laboratory::pluck('id', 'lab_name')->toArray();
+        $allCourses = \App\Models\Course::pluck('user_id', 'id')->toArray();
+
+        foreach ($batchSlots as $sib) {
+            $sibCourseId = (int)($sib['course_id'] ?? 0);
+            if ($sibCourseId === (int)$courseId) continue; // skip self
+
+            $sibLabName  = trim($sib['lab_name'] ?? '');
+            $sibDay      = $sib['day_of_week'] ?? '';
+            $sibTimeWin  = $sib['time_window'] ?? '';
+
+            if (!$sibLabName || !$sibDay || !$sibTimeWin) continue;
+
+            $sibLabId = $allLabs[$sibLabName]
+                ?? $allLabs[strtolower($sibLabName)]
+                ?? \App\Models\Laboratory::whereRaw('LOWER(lab_name) = ?', [strtolower($sibLabName)])->value('id')
+                ?? null;
+            if (!$sibLabId) continue;
+
+            $twParts = preg_split('/\s*-\s*/', $sibTimeWin);
+            if (count($twParts) !== 2) continue;
+            try {
+                $sibStart = \Carbon\Carbon::createFromFormat('h:i A', trim($twParts[0]))->format('H:i:s');
+                $sibEnd   = \Carbon\Carbon::createFromFormat('h:i A', trim($twParts[1]))->format('H:i:s');
+            } catch (\Exception $e) { continue; }
+
+            $sibLecturerId = $allCourses[$sibCourseId] ?? null;
+
+            $inMemorySlots[] = [
+                'lab_id'           => $sibLabId,
+                'lecturer_user_id' => $sibLecturerId,
+                'day_of_week'      => $sibDay,
+                'start_time'       => $sibStart,
+                'end_time'         => $sibEnd,
+            ];
+        }
 
         // 1. Fetch semester
         $semester = Semester::find($semesterId);
@@ -479,16 +564,6 @@ class AiSchedulerController extends Controller
         }
 
         $semesterStartDate = Carbon::parse($semester->start_date);
-
-        $dayMapping = [
-            'Monday'    => 1,
-            'Tuesday'   => 2,
-            'Wednesday' => 3,
-            'Thursday'  => 4,
-            'Friday'    => 5,
-            'Saturday'  => 6,
-            'Sunday'    => 7,
-        ];
 
         $targetDayIso = $dayMapping[$dayOfWeek] ?? null;
         if (!$targetDayIso) {
@@ -507,9 +582,10 @@ class AiSchedulerController extends Controller
         $startTime = \Carbon\Carbon::createFromFormat('H:i', substr($startTime, 0, 5))->format('H:i:s');
         $endTime   = \Carbon\Carbon::createFromFormat('H:i', substr($endTime, 0, 5))->format('H:i:s');
 
-        // ═══ Pass 1: Lab collision re-check (shared logic) ═══
+        // ═══ Pass 1: Lab collision re-check (shared logic, now with batch_siblings) ═══
         if (\App\Http\Controllers\ScheduleController::hasScheduleConflict(
-            $labId, $semesterId, $dayOfWeek, $startTime, $endTime
+            $labId, $semesterId, $dayOfWeek, $startTime, $endTime,
+            null, $inMemorySlots
         )) {
             return response()->json([
                 'success' => false,
@@ -517,11 +593,12 @@ class AiSchedulerController extends Controller
             ], 422);
         }
 
-        // ═══ Pass 2: Lecturer collision re-check (shared logic) ═══
+        // ═══ Pass 2: Lecturer collision re-check (shared logic, now with batch_siblings) ═══
         $course = Course::find($courseId);
         if ($course && $course->user_id) {
             if (\App\Http\Controllers\ScheduleController::hasLecturerConflict(
-                $course->user_id, $semesterId, $dayOfWeek, $startTime, $endTime
+                $course->user_id, $semesterId, $dayOfWeek, $startTime, $endTime,
+                null, $inMemorySlots
             )) {
                 return response()->json([
                     'success' => false,
@@ -535,7 +612,8 @@ class AiSchedulerController extends Controller
         try {
             // Final re-check before insert (catches race conditions within the lock window)
             if (\App\Http\Controllers\ScheduleController::hasScheduleConflict(
-                $labId, $semesterId, $dayOfWeek, $startTime, $endTime
+                $labId, $semesterId, $dayOfWeek, $startTime, $endTime,
+                null, $inMemorySlots
             )) {
                 DB::rollBack();
                 return response()->json([
@@ -546,7 +624,8 @@ class AiSchedulerController extends Controller
 
             if ($course && $course->user_id) {
                 if (\App\Http\Controllers\ScheduleController::hasLecturerConflict(
-                    $course->user_id, $semesterId, $dayOfWeek, $startTime, $endTime
+                    $course->user_id, $semesterId, $dayOfWeek, $startTime, $endTime,
+                    null, $inMemorySlots
                 )) {
                     DB::rollBack();
                     return response()->json([
