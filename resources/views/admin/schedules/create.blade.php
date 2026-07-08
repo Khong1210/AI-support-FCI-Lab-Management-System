@@ -11,22 +11,13 @@
         <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" id="top-error-alert" style="display: none;">
             <h5><i class="icon fas fa-ban mr-2"></i> Please fix the errors below:</h5>
             <ul class="mb-0 pl-4" id="top-error-list">
-                </ul>
+            </ul>
             <button type="button" class="close" id="close-error-alert" aria-hidden="true">×</button>
         </div>
 
         <div class="card shadow-sm">
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-clock mr-2"></i>Add Schedule</h3>
-            </div>
-
-            <div id="top-error-alert" class="alert alert-danger alert-dismissible fade show" style="display: none; margin-bottom: 20px;" role="alert">
-                <h5 class="alert-heading"><i class="fas fa-exclamation-triangle mr-2"></i> Form Submission Error</h5>
-                <ul id="top-error-list" class="mb-0 pl-3">
-                </ul>
-                <button type="button" class="close" id="close-error-alert" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
             </div>
 
             <form action="{{ url('/schedules') }}" method="POST" id="add-schedule-form">
@@ -127,17 +118,30 @@
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-6 form-group" id="regular-day-group">
                             <label>Day of Week</label>
-                            <input type="text" id="day-of-week-display" class="form-control bg-light" value="{{ old('date') ? \Carbon\Carbon::parse(old('date'))->format('l') : '' }}" readonly>
-                            <input type="hidden" name="day_of_week" id="day-of-week" value="{{ old('date') ? \Carbon\Carbon::parse(old('date'))->format('l') : '' }}">
+                            <input type="text" id="day-of-week-display" class="form-control bg-light" value="{{ old('date', request('date')) ? \Carbon\Carbon::parse(old('date', request('date')))->format('l') : '' }}" readonly>
                         </div>
                         
-                        <div class="col-md-6 form-group">
+                        <div class="col-md-6 form-group" id="enroll-day-group" style="display: none;">
+                            <label>Day of Week</label>
+                            <select id="enroll-day-select" class="form-control">
+                                <option value="">Select Day</option>
+                                <option value="Monday" {{ old('day_of_week') == 'Monday' ? 'selected' : '' }}>Monday</option>
+                                <option value="Tuesday" {{ old('day_of_week') == 'Tuesday' ? 'selected' : '' }}>Tuesday</option>
+                                <option value="Wednesday" {{ old('day_of_week') == 'Wednesday' ? 'selected' : '' }}>Wednesday</option>
+                                <option value="Thursday" {{ old('day_of_week') == 'Thursday' ? 'selected' : '' }}>Thursday</option>
+                                <option value="Friday" {{ old('day_of_week') == 'Friday' ? 'selected' : '' }}>Friday</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 form-group" id="regular-date-group">
                             <label>Date</label>
                             <input id="schedule-date" type="date" name="date" class="form-control @error('date') is-invalid @enderror" value="{{ old('date', request('date')) }}" required>
                             @error('date')<span class="invalid-feedback"><strong>{{ $message }}</strong></span>@enderror
                         </div>
+
+                        <input type="hidden" name="day_of_week" id="day-of-week" value="{{ old('day_of_week', old('date', request('date')) ? \Carbon\Carbon::parse(old('date', request('date')))->format('l') : '') }}">
                     </div>
 
                     <div class="row">
@@ -145,9 +149,9 @@
                             <input type="hidden" name="is_recurring" value="0">
                             <div class="custom-control custom-checkbox pt-2">
                                 <input type="checkbox" class="custom-control-input" id="is-recurring-checkbox" name="is_recurring" value="1" {{ old('is_recurring', '1') == '1' ? 'checked' : '' }}>
-                                <label class="custom-control-label" for="is-recurring-checkbox">Repeat weekly</label>
+                                <label class="custom-control-label" for="is-recurring-checkbox" id="is-recurring-label">Repeat weekly</label>
                             </div>
-                            <small class="form-text text-muted">Untick to create a one-time single-day schedule.</small>
+                            <small class="form-text text-muted" id="recurring-help-text">Untick to create a one-time single-day schedule.</small>
                         </div>
 
                         <div class="col-md-6 form-group" id="all-day-checkbox-group" style="display: none;">
@@ -217,8 +221,10 @@
         </div>
     </div>
 </div>
-</div> @endsection
-@push('styles')<style>
+@endsection
+
+@push('styles')
+<style>
     select option.disabled-slot {
         background-color: #e9ecef !important;
         color: #6c757d !important;
@@ -241,7 +247,29 @@
 
 @push('scripts')
 <script>
-    // ========== UTILITY FUNCTIONS ==========
+    // ========== 核心工具函数：根据学期开始日和星期几逆向推算首个真实日期 ==========
+    function getFirstDateOfWeekday(startDateStr, targetDayName) {
+        if (!startDateStr || !targetDayName) return '';
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const targetDayIndex = days.indexOf(targetDayName);
+        if (targetDayIndex === -1) return '';
+
+        const parts = startDateStr.split('-');
+        let current = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        
+        // 向前遍历最多7天，寻找吻合的星期数
+        for (let i = 0; i < 7; i++) {
+            if (current.getDay() === targetDayIndex) {
+                const y = current.getFullYear();
+                const m = String(current.getMonth() + 1).padStart(2, '0');
+                const d = String(current.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            }
+            current.setDate(current.getDate() + 1);
+        }
+        return '';
+    }
+
     function initializeTimeOptions() {
         const startTimeSelect = document.getElementById('start-time-select');
         if (!startTimeSelect) return;
@@ -268,11 +296,10 @@
         return (h < 10 ? '0' : '') + h + ':00';
     }
 
-    function isOverlapping(candStart, candEnd, occupStart, occupEnd) {
-        return candStart < occupEnd && candEnd > occupStart;
-    }
-
     function updateScheduleDay() {
+        const typeSelect = document.getElementById('schedule-type-select');
+        if (typeSelect && typeSelect.value === 'enroll') return; // Enroll模式不走这个常规流
+
         const dateInput = document.getElementById('schedule-date');
         const display = document.getElementById('day-of-week-display');
         const hidden = document.getElementById('day-of-week');
@@ -291,6 +318,38 @@
         const dayName = days[date.getDay()];
         display.value = dayName;
         hidden.value = dayName;
+    }
+
+    // ========== Enroll 模式专用：触发日期逆向计算 ==========
+    function updateEnrollDate() {
+        const typeSelect = document.getElementById('schedule-type-select');
+        if (!typeSelect || typeSelect.value !== 'enroll') return;
+
+        const semesterSelect = document.getElementById('semester-id-select');
+        const daySelect = document.getElementById('enroll-day-select');
+        const dateInput = document.getElementById('schedule-date');
+        const hiddenDay = document.getElementById('day-of-week');
+
+        if (!semesterSelect || !daySelect || !dateInput) return;
+
+        const selectedSemester = semesterSelect.options[semesterSelect.selectedIndex];
+        const dayName = daySelect.value;
+
+        if (selectedSemester && selectedSemester.value && dayName) {
+            const startDate = selectedSemester.getAttribute('data-start-date');
+            const calculatedDate = getFirstDateOfWeekday(startDate, dayName);
+            
+            if (calculatedDate) {
+                dateInput.value = calculatedDate;
+                if (hiddenDay) hiddenDay.value = dayName;
+                
+                // 日期更新后自动触发高频冲突检查，完全无缝！
+                updateStartTimeOptions();
+            }
+        } else {
+            dateInput.value = '';
+            if (hiddenDay) hiddenDay.value = '';
+        }
     }
 
     function updateStartTimeOptions() {
@@ -316,20 +375,13 @@
                     opt.value = time;
                     opt.textContent = time;
                     
-
                     const isOccupied = occupiedSlots.some(slot => {
                         if (!slot) return false;
-                        
-
                         let rawStart = slot.start_time || slot.start;
                         let rawEnd = slot.end_time || slot.end;
-                        
                         if (!rawStart || !rawEnd) return false;
-                        
-
-                        const sTime = rawStart.length >= 5 ? rawStart.substring(0, 5) : rawStart;
-                        const eTime = rawEnd.length >= 5 ? rawEnd.substring(0, 5) : rawEnd;
-                        
+                        const sTime = rawStart.substring(0, 5);
+                        const eTime = rawEnd.substring(0, 5);
                         return time >= sTime && time < eTime;
                     });
                     
@@ -338,12 +390,7 @@
                         opt.classList.add('disabled-slot');
                         opt.textContent = time + ' (occupied)';
                     }
-                    
-
-                    if (time === currentStartValue) {
-                        opt.selected = true;
-                    }
-                    
+                    if (time === currentStartValue) opt.selected = true;
                     startTimeSelect.appendChild(opt);
                 }
 
@@ -353,7 +400,6 @@
                     
                     Array.from(endSelect.options).forEach(opt => {
                         if (!opt.value) return;
-
                         opt.disabled = false;
                         opt.classList.remove('disabled-slot');
                         opt.text = opt.text.replace(' (occupied)', '');
@@ -363,11 +409,7 @@
                             let rawStart = slot.start_time || slot.start;
                             let rawEnd = slot.end_time || slot.end;
                             if (!rawStart || !rawEnd) return false;
-                            
-                            const sTime = rawStart.length >= 5 ? rawStart.substring(0, 5) : rawStart;
-                            const eTime = rawEnd.length >= 5 ? rawEnd.substring(0, 5) : rawEnd;
-                            
-                            return opt.value > sTime && opt.value <= eTime;
+                            return opt.value > rawStart.substring(0, 5) && opt.value <= rawEnd.substring(0, 5);
                         });
                         
                         if (endTimeOccupied) {
@@ -375,7 +417,6 @@
                             opt.classList.add('disabled-slot');
                             opt.text += ' (occupied)';
                         }
-
                         if (chosenStart && opt.value <= chosenStart) {
                             opt.disabled = true;
                             opt.classList.add('disabled-slot');
@@ -387,30 +428,10 @@
                         if (targetOpt) targetOpt.selected = true;
                     }
                 }
-                
             })
             .catch(err => {
                 console.error('Render fallback:', err);
-                startTimeSelect.innerHTML = '<option value="">Select Time</option>';
-                for (let h = 8; h <= 17; h++) {
-                    const time = (h < 10 ? '0' : '') + h + ':00';
-                    const opt = document.createElement('option');
-                    opt.value = time;
-                    opt.textContent = time;
-                    if (time === currentStartValue) opt.selected = true;
-                    startTimeSelect.appendChild(opt);
-                }
             });
-    }
-
-    function fetchConflicts(date, labId, excludeId = '') {
-        if (!date || !labId) return Promise.resolve([]);
-        const params = new URLSearchParams({ date: date, lab_id: labId, exclude_id: excludeId });
-        return fetch(`/schedules/check-conflicts?${params.toString()}`, {
-            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(resp => resp.ok ? resp.json() : [])
-        .catch(() => []);
     }
 
     function handleFormFormattingBasedOnType() {
@@ -421,11 +442,17 @@
         const bookingFieldsGroup = document.getElementById('booking-fields-group');
         const allDayCheckboxGroup = document.getElementById('all-day-checkbox-group');
         
+        // 界面切换器
+        const regularDayGroup = document.getElementById('regular-day-group');
+        const enrollDayGroup = document.getElementById('enroll-day-group');
+        const regularDateGroup = document.getElementById('regular-date-group');
+        
         const courseSelect = document.getElementById('course-select');
         const maintUserSelect = document.getElementById('maintenance-user-select');
         const bookingNameInput = document.getElementById('booking-name-input');
         const bookingPurposeInput = document.getElementById('booking-purpose-input');
         const recurringCheckbox = document.getElementById('is-recurring-checkbox');
+        const recurringHelpText = document.getElementById('recurring-help-text');
         const allDayCheckbox = document.getElementById('all-day-checkbox');
         
         const startSelect = document.getElementById('start-time-select');
@@ -437,16 +464,18 @@
 
         const currentType = typeSelect.value;
 
+        // 默认显示常规布局
+        if (regularDayGroup) regularDayGroup.style.display = 'block';
+        if (regularDateGroup) regularDateGroup.style.display = 'block';
+        if (enrollDayGroup) enrollDayGroup.style.display = 'none';
+
         if (courseGroup) courseGroup.style.display = 'none';
-        if (courseSelect) { courseSelect.required = false; }
-        
+        if (courseSelect) courseSelect.required = false;
         if (maintenanceUserGroup) maintenanceUserGroup.style.display = 'none';
-        if (maintUserSelect) { maintUserSelect.required = false; }
-        
+        if (maintUserSelect) maintUserSelect.required = false;
         if (bookingFieldsGroup) bookingFieldsGroup.style.display = 'none';
-        if (bookingNameInput) { bookingNameInput.required = false; }
-        if (bookingPurposeInput) { bookingPurposeInput.required = false; }
-        
+        if (bookingNameInput) bookingNameInput.required = false;
+        if (bookingPurposeInput) bookingPurposeInput.required = false;
         if (allDayCheckboxGroup) allDayCheckboxGroup.style.display = 'none';
 
         if (startSelect) startSelect.classList.remove('readonly-select-override');
@@ -454,13 +483,32 @@
             endSelect.classList.remove('readonly-select-override', 'bg-light');
             endSelect.disabled = false;
         }
+        if (recurringCheckbox) {
+            recurringCheckbox.disabled = false;
+            if (recurringHelpText) recurringHelpText.innerText = "Untick to create a one-time single-day schedule.";
+        }
 
         if (currentType === 'enroll') {
+            // 🌟 强力切换：隐藏常规日历，显示星期下拉框
+            if (regularDayGroup) regularDayGroup.style.display = 'none';
+            if (regularDateGroup) regularDateGroup.style.display = 'none'; 
+            if (enrollDayGroup) enrollDayGroup.style.display = 'block'; 
+
             if (courseGroup) courseGroup.style.display = 'block';
             if (courseSelect) courseSelect.required = true;
             if (helpText) helpText.innerHTML = '<i class="fas fa-info-circle mr-1"></i> Automatically calculated from the selected course\'s hours.';
             
             endSelect.classList.add('bg-light');
+
+            // 🌟 强力限制：Enroll 模式强制勾选且禁用取消
+            if (recurringCheckbox) {
+                recurringCheckbox.checked = true;
+                recurringCheckbox.disabled = true;
+                if (recurringHelpText) recurringHelpText.innerText = "Enrollment schedules are automatically recurring for the entire semester.";
+            }
+
+            // 执行专属日期逆推
+            updateEnrollDate();
 
             if (!courseSelect) return;
             const selectedCourse = courseSelect.options[courseSelect.selectedIndex];
@@ -506,64 +554,37 @@
                 startSelect.value = "08:00";
                 endSelect.value = "18:00";
                 if (endHidden) endHidden.value = "18:00";
-
                 startSelect.required = false;
                 endSelect.required = false;
-                
                 startSelect.classList.add('readonly-select-override');
                 endSelect.classList.add('readonly-select-override');
             } else {
-
                 startSelect.required = true;
                 endSelect.required = true;
-                
                 startSelect.classList.remove('readonly-select-override');
                 endSelect.classList.remove('readonly-select-override');
-                
                 endSelect.onchange = function() {
                     if (endHidden) endHidden.value = this.value;
                 };
             }
-        } else {
-            if (allDayCheckbox) allDayCheckbox.checked = false;
-            if (startSelect) {
-                startSelect.value = '';
-                startSelect.required = true;
-                startSelect.classList.remove('readonly-select-override');
-            }
-            if (endSelect) {
-                endSelect.value = '';
-                endSelect.required = true;
-                endSelect.classList.remove('readonly-select-override', 'bg-light');
-                endSelect.disabled = false;
-            }
-            if (endHidden) endHidden.value = '';
         }
     }
 
     function clearFieldErrors() {
         document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-        
         document.querySelectorAll('.text-danger, [id^="error-"]').forEach(el => {
-            if(el.tagName === 'SPAN' || el.tagName === 'SMALL' || el.textContent.includes('invalid')) {
-                el.remove();
-            }
+            if(el.tagName === 'SPAN' || el.tagName === 'SMALL' || el.textContent.includes('invalid')) el.remove();
         });
-
         const topBox = document.getElementById('top-error-alert');
-        const topList = document.getElementById('top-error-list');
         if (topBox) topBox.style.display = 'none';
-        if (topList) topList.innerHTML = '';
     }
 
     function displayFieldErrors(errors) {
         const topBox = document.getElementById('top-error-alert');
         const topList = document.getElementById('top-error-list');
-        
         if (topBox && topList) {
             topBox.style.display = 'block';
             topList.innerHTML = ''; 
-
             Object.keys(errors).forEach(field => {
                 errors[field].forEach(msg => {
                     const li = document.createElement('li');
@@ -579,14 +600,6 @@
         event.preventDefault();
         clearFieldErrors();
 
-        const allDayCheckbox = document.getElementById('all-day-checkbox');
-        const startSelect = document.getElementById('start-time-select');
-        const endSelect = document.getElementById('end-time-select');
-        if (allDayCheckbox && allDayCheckbox.checked) {
-            if (startSelect) startSelect.required = false;
-            if (endSelect) endSelect.required = false;
-        }
-        
         const form = event.target;
         const currentType = document.getElementById('schedule-type-select').value;
         const formData = new FormData(form);
@@ -597,7 +610,13 @@
         } else if (currentType === 'enroll') {
             formData.set('purpose', 'Academic Class');
             formData.set('booked_by', 'Lecturer');
+            // 🌟 核心拦截：由于 checkbox 被 disabled 无法序列化，在提交前强制追加循环参数
+            formData.set('is_recurring', '1'); 
         }
+
+        // 自动提取当前的 lab 和 semester 实现返回后不丢失过滤器
+        const targetLab = document.getElementById('lab-id-select').value;
+        const targetSem = document.getElementById('semester-id-select').value;
 
         fetch(form.action, {
             method: 'POST',
@@ -608,13 +627,12 @@
             if (!resp.ok && resp.status === 422) {
                 return resp.json().then(d => { throw { status: 422, errors: d.errors }; });
             }
-            if (!resp.ok) {
-                throw { status: resp.status, message: 'Form saving error.' };
-            }
+            if (!resp.ok) throw { status: resp.status, message: 'Form saving error.' };
             return resp.json();
         })
         .then(data => {
-            window.location.href = '/schedules';
+            // 🌟 完美跳转保持过滤器
+            window.location.href = `/schedules?lab_id=${targetLab}&semester_id=${targetSem}`;
         })
         .catch(err => {
             if (err.status === 422 && err.errors) {
@@ -637,47 +655,29 @@
         const dateInput = document.getElementById('schedule-date');
 
         if (!typeSelect || !dateInput) return;
-
         const currentType = typeSelect.value;
 
         if (currentType === 'booking' || currentType === 'maintenance') {
             dateInput.min = new Date().toISOString().split('T')[0];
-            if (currentType !== 'enroll') {
-                dateInput.removeAttribute('max');
-            }
-
+            dateInput.removeAttribute('max');
         } else if (currentType === 'enroll') {
             dateInput.removeAttribute('min');
             if (semesterSelect && semesterSelect.value) {
                 const selectedOption = semesterSelect.options[semesterSelect.selectedIndex];
-                const startDate = selectedOption.getAttribute('data-start-date');
-                const endDate = selectedOption.getAttribute('data-end-date');
-                if (startDate) dateInput.min = startDate;
-                if (endDate) dateInput.max = endDate;
-
-                if (dateInput.value) {
-                    if ((startDate && dateInput.value < startDate) || (endDate && dateInput.value > endDate)) {
-                        alert('⚠️ The currently selected date falls outside the new semester boundary. The date field has been cleared.');
-                        dateInput.value = '';
-                        updateScheduleDay();
-                        updateStartTimeOptions();
-                    }
-                }
+                dateInput.min = selectedOption.getAttribute('data-start-date');
+                dateInput.max = selectedOption.getAttribute('data-end-date');
             }
-        } else {
-            dateInput.removeAttribute('min');
-            dateInput.removeAttribute('max');
         }
     }
 
-    // ========== INITIALIZATION ==========
     document.addEventListener('DOMContentLoaded', function () {
         initializeTimeOptions();
 
-        updateScheduleDay();
-        handleFormFormattingBasedOnType();
-        updateStartTimeOptions();
-        updateDateConstraints();
+        // 监听新增的星期选择器
+        const enrollDaySelect = document.getElementById('enroll-day-select');
+        if (enrollDaySelect) {
+            enrollDaySelect.addEventListener('change', updateEnrollDate);
+        }
 
         const typeSelect = document.getElementById('schedule-type-select');
         const dateInput = document.getElementById('schedule-date');
@@ -692,7 +692,6 @@
         if (typeSelect) {
             typeSelect.addEventListener('change', function() {
                 handleFormFormattingBasedOnType();
-                updateStartTimeOptions();
                 updateDateConstraints();
             });
         }
@@ -700,17 +699,30 @@
         if (semesterSelect) {
             semesterSelect.addEventListener('change', function() {
                 updateDateConstraints();
-                updateStartTimeOptions();
+                if (typeSelect && typeSelect.value === 'enroll') {
+                    updateEnrollDate();
+                } else {
+                    updateStartTimeOptions();
+                }
             });
         }
 
-        if (dateInput) dateInput.addEventListener('change', function () { updateScheduleDay(); updateStartTimeOptions(); });
-        if (labSelect) labSelect.addEventListener('change', updateStartTimeOptions);
-        
-        if (dateInput && dateInput.value && labSelect && labSelect.value) {
-            updateStartTimeOptions();
+        if (dateInput) {
+            dateInput.addEventListener('change', function () { 
+                updateScheduleDay(); 
+                updateStartTimeOptions(); 
+            });
         }
-
+        if (labSelect) {
+            labSelect.addEventListener('change', function() {
+                if (typeSelect && typeSelect.value === 'enroll') {
+                    updateEnrollDate();
+                } else {
+                    updateStartTimeOptions();
+                }
+            });
+        }
+        
         if (courseSelect) {
             courseSelect.addEventListener('change', function () { 
                 updateStartTimeOptions(); 
@@ -738,9 +750,12 @@
             });
         }
        
-        if (form) {
-            form.addEventListener('submit', handleAjaxFormSubmit);
-        }
+        // 初始装载状态
+        handleFormFormattingBasedOnType();
+        updateDateConstraints();
+        updateScheduleDay();
+
+        if (form) form.addEventListener('submit', handleAjaxFormSubmit);
     });
 </script>
 @endpush
