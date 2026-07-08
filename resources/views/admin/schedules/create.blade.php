@@ -247,7 +247,7 @@
 
 @push('scripts')
 <script>
-    // ========== 核心工具函数：根据学期开始日和星期几逆向推算首个真实日期 ==========
+    // ========== 1. 工具函数 ==========
     function getFirstDateOfWeekday(startDateStr, targetDayName) {
         if (!startDateStr || !targetDayName) return '';
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -257,7 +257,6 @@
         const parts = startDateStr.split('-');
         let current = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
         
-        // 向前遍历最多7天，寻找吻合的星期数
         for (let i = 0; i < 7; i++) {
             if (current.getDay() === targetDayIndex) {
                 const y = current.getFullYear();
@@ -298,7 +297,7 @@
 
     function updateScheduleDay() {
         const typeSelect = document.getElementById('schedule-type-select');
-        if (typeSelect && typeSelect.value === 'enroll') return; // Enroll模式不走这个常规流
+        if (typeSelect && typeSelect.value === 'enroll') return;
 
         const dateInput = document.getElementById('schedule-date');
         const display = document.getElementById('day-of-week-display');
@@ -320,7 +319,7 @@
         hidden.value = dayName;
     }
 
-    // ========== Enroll 模式专用：触发日期逆向计算 ==========
+    // ========== 2. ENROLL 模式下自动推算日期 ==========
     function updateEnrollDate() {
         const typeSelect = document.getElementById('schedule-type-select');
         if (!typeSelect || typeSelect.value !== 'enroll') return;
@@ -342,8 +341,6 @@
             if (calculatedDate) {
                 dateInput.value = calculatedDate;
                 if (hiddenDay) hiddenDay.value = dayName;
-                
-                // 日期更新后自动触发高频冲突检查，完全无缝！
                 updateStartTimeOptions();
             }
         } else {
@@ -352,88 +349,148 @@
         }
     }
 
-    function updateStartTimeOptions() {
-        const date = document.getElementById('schedule-date').value;
-        const labId = document.getElementById('lab-id-select').value;
-        const startTimeSelect = document.getElementById('start-time-select');
-        const endSelect = document.getElementById('end-time-select');
+function updateStartTimeOptions() {
+    const date = document.getElementById('schedule-date').value;
+    const labId = document.getElementById('lab-id-select').value;
+    const startTimeSelect = document.getElementById('start-time-select');
+    const endSelect = document.getElementById('end-time-select');
+    const endHidden = document.getElementById('end-time-hidden');
+    const typeSelect = document.getElementById('schedule-type-select');
+    const courseSelect = document.getElementById('course-select');
 
-        if (!date || !labId || !startTimeSelect) return;
+    if (!date || !labId || !startTimeSelect) return;
 
-        const currentStartValue = startTimeSelect.value;
+    const currentStartValue = startTimeSelect.value;
+    const scheduleType = typeSelect ? typeSelect.value : 'enroll';
+    
+    // 正确地从当前选中的 <option> 中获取课程时长 data-hours
+    let courseHours = 1;
+    if (courseSelect && courseSelect.selectedIndex >= 0) {
+        const selectedOpt = courseSelect.options[courseSelect.selectedIndex];
+        if (selectedOpt && selectedOpt.value) {
+            courseHours = parseInt(selectedOpt.dataset.hours || '1', 10);
+        }
+    }
 
-        fetch(`/schedules/check-occupied-slots?date=${date}&laboratory_id=${labId}`)
-            .then(res => res.ok ? res.json() : [])
-            .then(occupiedSlots => {
-                if (!Array.isArray(occupiedSlots)) occupiedSlots = [];
+    fetch(`/schedules/check-occupied-slots?date=${date}&laboratory_id=${labId}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(occupiedSlots => {
+            if (!Array.isArray(occupiedSlots)) occupiedSlots = [];
+            
+            // 🌟 保留旧UI：清空并重绘开始时间列表
+            startTimeSelect.innerHTML = '<option value="">Select Time</option>';
+            
+            for (let h = 8; h <= 17; h++) {
+                const time = (h < 10 ? '0' : '') + h + ':00';
+                const opt = document.createElement('option');
+                opt.value = time;
+                opt.textContent = time;
                 
-                startTimeSelect.innerHTML = '<option value="">Select Time</option>';
-                
-                for (let h = 8; h <= 17; h++) {
-                    const time = (h < 10 ? '0' : '') + h + ':00';
-                    const opt = document.createElement('option');
-                    opt.value = time;
-                    opt.textContent = time;
-                    
-                    const isOccupied = occupiedSlots.some(slot => {
-                        if (!slot) return false;
-                        let rawStart = slot.start_time || slot.start;
-                        let rawEnd = slot.end_time || slot.end;
-                        if (!rawStart || !rawEnd) return false;
-                        const sTime = rawStart.substring(0, 5);
-                        const eTime = rawEnd.substring(0, 5);
-                        return time >= sTime && time < eTime;
-                    });
-                    
-                    if (isOccupied) {
-                        opt.disabled = true;
-                        opt.classList.add('disabled-slot');
-                        opt.textContent = time + ' (occupied)';
+                let isDisabled = false;
+                let reasonText = '';
+
+                // 1. 越界检查：排课时间 + 课程课时如果超过 18:00，则不允许选择
+                if (scheduleType === 'enroll') {
+                    const startMin = h * 60;
+                    const endMin = startMin + courseHours * 60;
+                    if (endMin > 18 * 60) {
+                        isDisabled = true;
+                        reasonText = ' (not enough time before close)';
                     }
-                    if (time === currentStartValue) opt.selected = true;
-                    startTimeSelect.appendChild(opt);
                 }
 
-                if (endSelect) {
-                    const chosenStart = startTimeSelect.value;
-                    const endCurrentValue = endSelect.value;
-                    
-                    Array.from(endSelect.options).forEach(opt => {
-                        if (!opt.value) return;
-                        opt.disabled = false;
-                        opt.classList.remove('disabled-slot');
-                        opt.text = opt.text.replace(' (occupied)', '');
+                // 2. 🌟 【核心逻辑升级】：如果没越界，利用循环向后看 courseHours 个小时，检查是否会撞上已有课
+                if (!isDisabled) {
+                    // 如果是排课就检查连续多小时，如果是普通 booking/maintenance 则只检查当前 1 小时
+                    const hoursToCheck = (scheduleType === 'enroll') ? courseHours : 1;
 
-                        const endTimeOccupied = occupiedSlots.some(slot => {
+                    for (let i = 0; i < hoursToCheck; i++) {
+                        const checkH = h + i;
+                        const checkTime = (checkH < 10 ? '0' : '') + checkH + ':00';
+
+                        // 检查当前看过去的这个 checkTime 整点是否落在数据库任何已占用的区间内
+                        const hasConflict = occupiedSlots.some(slot => {
                             if (!slot) return false;
                             let rawStart = slot.start_time || slot.start;
                             let rawEnd = slot.end_time || slot.end;
                             if (!rawStart || !rawEnd) return false;
-                            return opt.value > rawStart.substring(0, 5) && opt.value <= rawEnd.substring(0, 5);
+                            const sTime = rawStart.substring(0, 5);
+                            const eTime = rawEnd.substring(0, 5);
+                            
+                            return checkTime >= sTime && checkTime < eTime;
                         });
-                        
-                        if (endTimeOccupied) {
-                            opt.disabled = true;
-                            opt.classList.add('disabled-slot');
-                            opt.text += ' (occupied)';
-                        }
-                        if (chosenStart && opt.value <= chosenStart) {
-                            opt.disabled = true;
-                            opt.classList.add('disabled-slot');
-                        }
-                    });
 
-                    if (endCurrentValue) {
-                        const targetOpt = Array.from(endSelect.options).find(o => o.value === endCurrentValue && !o.disabled);
-                        if (targetOpt) targetOpt.selected = true;
+                        if (hasConflict) {
+                            isDisabled = true;
+                            reasonText = ' (occupied)';
+                            break; // 只要未来某一个小时撞车了，整段课程起点就直接判废，跳出检查
+                        }
                     }
                 }
-            })
-            .catch(err => {
-                console.error('Render fallback:', err);
-            });
-    }
+                
+                // 3. 🌟 完美保留你原汁原味的漂亮灰色 UI 渲染
+                if (isDisabled) {
+                    opt.disabled = true;
+                    opt.classList.add('disabled-slot'); // 触发你的灰色 CSS
+                    opt.textContent = time + reasonText; // 渲染具体的错误提示文字
+                }
 
+                if (time === currentStartValue && !opt.disabled) opt.selected = true;
+                startTimeSelect.appendChild(opt);
+            }
+
+            // 过滤和同步结束时间列表 (以下完全是你原封不动的旧 UI 和脏数据刷新逻辑)
+            if (endSelect) {
+                const chosenStart = startTimeSelect.value;
+                const endCurrentValue = endSelect.value;
+                
+                Array.from(endSelect.options).forEach(opt => {
+                    if (!opt.value) return;
+                    opt.disabled = false;
+                    opt.classList.remove('disabled-slot');
+                    opt.text = opt.text.replace(' (occupied)', '');
+
+                    const endTimeOccupied = occupiedSlots.some(slot => {
+                        if (!slot) return false;
+                        let rawStart = slot.start_time || slot.start;
+                        let rawEnd = slot.end_time || slot.end;
+                        if (!rawStart || !rawEnd) return false;
+                        return opt.value > rawStart.substring(0, 5) && opt.value <= rawEnd.substring(0, 5);
+                    });
+                    
+                    if (endTimeOccupied) {
+                        opt.disabled = true;
+                        opt.classList.add('disabled-slot');
+                        opt.text += ' (occupied)';
+                    }
+                    if (chosenStart && opt.value <= chosenStart) {
+                        opt.disabled = true;
+                        opt.classList.add('disabled-slot');
+                    }
+                });
+
+                // 重新校准选中的结束时间
+                if (endCurrentValue) {
+                    const targetOpt = Array.from(endSelect.options).find(o => o.value === endCurrentValue && !o.disabled);
+                    if (targetOpt) {
+                        targetOpt.selected = true;
+                    } else {
+                        endSelect.value = ""; // 如果原选中的结束时间现在变为了不可选，将其清空
+                    }
+                }
+                
+                // 核心：用代码强制刷新隐藏域的值，绝不留下过期脏数据
+                if (endHidden) {
+                    endHidden.value = endSelect.value;
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Render fallback error:', err);
+        });
+}
+
+    // ========== 4. 动态表单布局渲染 ==========
     function handleFormFormattingBasedOnType() {
         const typeSelect = document.getElementById('schedule-type-select');
         
@@ -442,7 +499,6 @@
         const bookingFieldsGroup = document.getElementById('booking-fields-group');
         const allDayCheckboxGroup = document.getElementById('all-day-checkbox-group');
         
-        // 界面切换器
         const regularDayGroup = document.getElementById('regular-day-group');
         const enrollDayGroup = document.getElementById('enroll-day-group');
         const regularDateGroup = document.getElementById('regular-date-group');
@@ -464,7 +520,7 @@
 
         const currentType = typeSelect.value;
 
-        // 默认显示常规布局
+        // 基础重置
         if (regularDayGroup) regularDayGroup.style.display = 'block';
         if (regularDateGroup) regularDateGroup.style.display = 'block';
         if (enrollDayGroup) enrollDayGroup.style.display = 'none';
@@ -488,8 +544,8 @@
             if (recurringHelpText) recurringHelpText.innerText = "Untick to create a one-time single-day schedule.";
         }
 
+        // 分类型处理逻辑
         if (currentType === 'enroll') {
-            // 🌟 强力切换：隐藏常规日历，显示星期下拉框
             if (regularDayGroup) regularDayGroup.style.display = 'none';
             if (regularDateGroup) regularDateGroup.style.display = 'none'; 
             if (enrollDayGroup) enrollDayGroup.style.display = 'block'; 
@@ -500,20 +556,20 @@
             
             endSelect.classList.add('bg-light');
 
-            // 🌟 强力限制：Enroll 模式强制勾选且禁用取消
             if (recurringCheckbox) {
                 recurringCheckbox.checked = true;
                 recurringCheckbox.disabled = true;
                 if (recurringHelpText) recurringHelpText.innerText = "Enrollment schedules are automatically recurring for the entire semester.";
             }
 
-            // 执行专属日期逆推
             updateEnrollDate();
 
             if (!courseSelect) return;
+            // 【修复 1.2】从当前选中的 Option 节点获取真正的数据
             const selectedCourse = courseSelect.options[courseSelect.selectedIndex];
             if (!selectedCourse || !selectedCourse.value) {
                 endSelect.value = "";
+                if (endHidden) endHidden.value = "";
                 endSelect.disabled = true;
                 return;
             }
@@ -538,10 +594,6 @@
 
             if (recurringCheckbox) recurringCheckbox.checked = false;
 
-            endSelect.onchange = function() {
-                if (endHidden) endHidden.value = this.value;
-            };
-
         } else if (currentType === 'maintenance') {
             if (maintenanceUserGroup) maintenanceUserGroup.style.display = 'block';
             if (maintUserSelect) maintUserSelect.required = true;
@@ -563,13 +615,12 @@
                 endSelect.required = true;
                 startSelect.classList.remove('readonly-select-override');
                 endSelect.classList.remove('readonly-select-override');
-                endSelect.onchange = function() {
-                    if (endHidden) endHidden.value = this.value;
-                };
+                if (endHidden) endHidden.value = endSelect.value; // 释放时同步当前值
             }
         }
     }
 
+    // ========== 5. 错误提示相关 ==========
     function clearFieldErrors() {
         document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
         document.querySelectorAll('.text-danger, [id^="error-"]').forEach(el => {
@@ -596,6 +647,7 @@
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    // ========== 6. AJAX 表单提交 ==========
     function handleAjaxFormSubmit(event) {
         event.preventDefault();
         clearFieldErrors();
@@ -610,13 +662,12 @@
         } else if (currentType === 'enroll') {
             formData.set('purpose', 'Academic Class');
             formData.set('booked_by', 'Lecturer');
-            // 🌟 核心拦截：由于 checkbox 被 disabled 无法序列化，在提交前强制追加循环参数
             formData.set('is_recurring', '1'); 
         }
 
-        // 自动提取当前的 lab 和 semester 实现返回后不丢失过滤器
         const targetLab = document.getElementById('lab-id-select').value;
         const targetSem = document.getElementById('semester-id-select').value;
+        const targetDate = document.getElementById('schedule-date').value;
 
         fetch(form.action, {
             method: 'POST',
@@ -631,8 +682,7 @@
             return resp.json();
         })
         .then(data => {
-            // 🌟 完美跳转保持过滤器
-            window.location.href = `/schedules?lab_id=${targetLab}&semester_id=${targetSem}`;
+            window.location.href = `/schedules?lab_id=${targetLab}&semester_id=${targetSem}&date=${targetDate}`;
         })
         .catch(err => {
             if (err.status === 422 && err.errors) {
@@ -650,30 +700,39 @@
     }
 
     function updateDateConstraints() {
-        const typeSelect = document.getElementById('schedule-type-select');
         const semesterSelect = document.getElementById('semester-id-select');
         const dateInput = document.getElementById('schedule-date');
 
-        if (!typeSelect || !dateInput) return;
-        const currentType = typeSelect.value;
+        if (!semesterSelect || !dateInput) return;
 
-        if (currentType === 'booking' || currentType === 'maintenance') {
-            dateInput.min = new Date().toISOString().split('T')[0];
-            dateInput.removeAttribute('max');
-        } else if (currentType === 'enroll') {
-            dateInput.removeAttribute('min');
-            if (semesterSelect && semesterSelect.value) {
-                const selectedOption = semesterSelect.options[semesterSelect.selectedIndex];
-                dateInput.min = selectedOption.getAttribute('data-start-date');
-                dateInput.max = selectedOption.getAttribute('data-end-date');
+        if (semesterSelect.value) {
+            const selectedOption = semesterSelect.options[semesterSelect.selectedIndex];
+            const startDate = selectedOption.getAttribute('data-start-date');
+            const endDate = selectedOption.getAttribute('data-end-date');
+
+            dateInput.min = startDate;
+            dateInput.max = endDate;
+
+            const currentDate = dateInput.value;
+            if (currentDate && (currentDate < startDate || currentDate > endDate)) {
+                dateInput.value = '';
+                const display = document.getElementById('day-of-week-display');
+                const hidden = document.getElementById('day-of-week');
+                if (display) display.value = '';
+                if (hidden) hidden.value = '';
+                
+                updateStartTimeOptions();
             }
+        } else {
+            dateInput.removeAttribute('min');
+            dateInput.removeAttribute('max');
         }
     }
 
+    // ========== 7. 全局事件绑定（集中规范化） ==========
     document.addEventListener('DOMContentLoaded', function () {
         initializeTimeOptions();
 
-        // 监听新增的星期选择器
         const enrollDaySelect = document.getElementById('enroll-day-select');
         if (enrollDaySelect) {
             enrollDaySelect.addEventListener('change', updateEnrollDate);
@@ -684,10 +743,19 @@
         const labSelect = document.getElementById('lab-id-select');
         const courseSelect = document.getElementById('course-select');
         const startSelect = document.getElementById('start-time-select');
+        const endSelect = document.getElementById('end-time-select');
+        const endHidden = document.getElementById('end-time-hidden');
         const semesterSelect = document.getElementById('semester-id-select');
         const allDayCheckbox = document.getElementById('all-day-checkbox');
         const form = document.getElementById('add-schedule-form');
         const closeAlertBtn = document.getElementById('close-error-alert');
+
+        // 【优化】统一样式的统一监听器，将 endSelect 更改事件持久绑定，绝不覆盖
+        if (endSelect && endHidden) {
+            endSelect.addEventListener('change', function() {
+                endHidden.value = this.value;
+            });
+        }
 
         if (typeSelect) {
             typeSelect.addEventListener('change', function() {
@@ -732,8 +800,21 @@
 
         if (startSelect) {
             startSelect.addEventListener('change', function() {
+                // 【修复 3】开始时间改变时，只需引发渲染计算和联动，无需重新抓取后端重绘自己
                 handleFormFormattingBasedOnType();
-                updateStartTimeOptions();
+                if (endSelect && endHidden && typeSelect.value !== 'enroll') {
+                    // 非 Enroll 模式下，更新结束时间的禁用状态
+                    Array.from(endSelect.options).forEach(opt => {
+                        if(opt.value && opt.value <= this.value) {
+                            opt.disabled = true;
+                            opt.classList.add('disabled-slot');
+                        }
+                    });
+                    if(endSelect.value <= this.value) {
+                        endSelect.value = "";
+                        endHidden.value = "";
+                    }
+                }
             });
         }
         
@@ -750,7 +831,7 @@
             });
         }
        
-        // 初始装载状态
+        // 首次加载初始化
         handleFormFormattingBasedOnType();
         updateDateConstraints();
         updateScheduleDay();

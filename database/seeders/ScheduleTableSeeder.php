@@ -25,7 +25,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '10:00:00',
                 'created_at' => '2026-06-26 21:25:02',
                 'updated_at' => '2026-06-26 21:25:02',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 2,
@@ -40,7 +40,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '13:00:00',
                 'created_at' => '2026-06-26 21:25:30',
                 'updated_at' => '2026-06-26 21:25:30',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 3,
@@ -55,7 +55,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '10:00:00',
                 'created_at' => '2026-06-26 21:25:47',
                 'updated_at' => '2026-06-26 21:25:47',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 4,
@@ -70,7 +70,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '18:00:00',
                 'created_at' => '2026-06-26 21:26:34',
                 'updated_at' => '2026-06-26 21:26:42',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 5,
@@ -85,7 +85,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '11:00:00',
                 'created_at' => '2026-06-26 21:27:46',
                 'updated_at' => '2026-06-26 21:27:46',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 6,
@@ -100,7 +100,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '14:00:00',
                 'created_at' => '2026-06-26 21:29:14',
                 'updated_at' => '2026-06-26 21:38:30',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 7,
@@ -115,7 +115,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '18:00:00',
                 'created_at' => '2026-06-26 21:30:34',
                 'updated_at' => '2026-06-26 21:30:34',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 8,
@@ -145,7 +145,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '18:00:00',
                 'created_at' => '2026-06-26 21:34:18',
                 'updated_at' => '2026-06-26 21:34:28',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 10,
@@ -175,7 +175,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '14:00:00',
                 'created_at' => '2026-06-26 21:37:36',
                 'updated_at' => '2026-06-26 21:37:36',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 12,
@@ -190,7 +190,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '17:00:00',
                 'created_at' => '2026-06-26 21:37:58',
                 'updated_at' => '2026-06-26 21:37:58',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
             [
                 'id' => 13,
@@ -205,7 +205,7 @@ class ScheduleTableSeeder extends Seeder
                 'end_time' => '18:00:00',
                 'created_at' => '2026-06-26 21:39:58',
                 'updated_at' => '2026-06-26 21:40:05',
-                'semester_id' => 2,
+                'semester_id' => 1,
             ],
         ]);
     }

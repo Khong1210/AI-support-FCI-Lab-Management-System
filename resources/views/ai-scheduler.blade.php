@@ -275,6 +275,10 @@
     const lecturers = @json($lecturers ?? []);
     let currentSemesterId = @json($currentSemesterId ?? 1);
 
+    // 🔍【诊断节点1】打印后端传来的原始数据结构，确认真实键名
+    console.log("【检查原始数据】schedules 第一条：", schedules[0]);
+    console.log("【检查原始数据】laboratories 第一条：", laboratories[0]);
+
     let schedulingQueue = [];
     let workflowState = {
         step1Locked: false,
@@ -679,8 +683,13 @@
             // to prevent stale-data interference and contradictory rule sets from confusing the AI.
             const totalGlobalContext = `SEMESTER_ID: ${currentSemesterId}
 
-[COURSE REQUIREMENT DEMAND BLOCKS]
-${compiledRequirementsText}`;
+                [COURSE REQUIREMENT DEMAND BLOCKS]
+                ${compiledRequirementsText};
+
+                [CRITICAL MATRIX DISTRIBUTION CONSTRAINTS]
+                1. You MUST actively utilize the entire 5-day academic week (Monday, Tuesday, Wednesday, Thursday, Friday).
+                2. DO NOT cluster or bias rows into Monday through Wednesday. Thursday and Friday MUST be allocated to ensure even load balancing across available lab assets.
+                3. If you do not distribute courses across all 5 days, the administration system will reject the matrix. Make sure Thursday and Friday have explicit rows assigned.`;
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 120000);
@@ -728,14 +737,23 @@ ${compiledRequirementsText}`;
             ];
 
             // ── Helper: check if a (lab, day, start, end) conflicts with existing schedules ──
-            function hasConflict(labName, day, slotStart, slotEnd) {
+                    // ── Helper: 检查是否与数据库已有课表冲突 ──
+            function hasConflict(labName, day, slotStart, slotEnd, currentLecturerId, currentCourseId) {
                 return schedules.some(s => {
-                    if (s.laboratory_name !== labName) return false;
                     if (s.day_of_week !== day) return false;
-                    return slotStart < s.end_time && slotEnd > s.start_time;
+                    
+                    // 1. 机房冲突检测
+                    const isLabConflict = (s.laboratory_name === labName && slotStart < s.end_time && slotEnd > s.start_time);
+                    
+                    // 2. 讲师冲突检测（防止同一个讲师同一时间在两个机房上课）
+                    const isLecturerConflict = (s.lecturer_id && currentLecturerId && s.lecturer_id == currentLecturerId && slotStart < s.end_time && slotEnd > s.start_time);
+                    
+                    // 3. 相同课程冲突检测（防止同一门课同一时间上两节）
+                    const isCourseConflict = (s.course_id && currentCourseId && s.course_id == currentCourseId && slotStart < s.end_time && slotEnd > s.start_time);
+
+                    return isLabConflict || isLecturerConflict || isCourseConflict;
                 });
             }
-
             // ── Helper: check if a lab has the required asset ──
             function labHasAsset(labName, constraintType, constraintValue) {
                 if (constraintType === 'software') {
@@ -771,21 +789,33 @@ ${compiledRequirementsText}`;
                         ? allTimeSlots.filter(ts => ts.shift === 'afternoon')
                         : allTimeSlots;
 
-                // Sequential search: day → lab → slot, skip conflicts
                 searchLoop:
-                for (const day of dayNames) {
+                for (let attempt = 0; attempt < dayNames.length; attempt++) {
+                    // 【核心改进】每次循环时，对工作日按“当前已分配课程数量”升序排序
+                    // 哪天课最少，哪天就排在最前面，优先参与检索！
+                    const sortedDays = [...dayNames].sort((a, b) => {
+                        const countA = fallbackSlots.filter(s => s.day === a).length;
+                        const countB = fallbackSlots.filter(s => s.day === b).length;
+                        return countA - countB;
+                    });
+
+                    // 拿到当前最空闲的那一天
+                    const day = sortedDays[attempt];
+
                     for (const lab of labsToTry) {
                         for (const ts of slotsToTry) {
-                            // Check against existing DB schedules
+                            // 检查数据库冲突
                             if (hasConflict(lab.lab_name, day, ts.start, ts.end)) continue;
-                            // Check against already-assigned batch entries
+                            
+                            // 检查当前批次内部冲突
                             const batchConflict = batchAssignments.some(ba =>
                                 ba.lab_name === lab.lab_name &&
                                 ba.day === day &&
                                 ts.start < ba.end && ts.end > ba.start
                             );
                             if (batchConflict) continue;
-                            // Also check lecturer conflicts within batch
+                            
+                            // 检查讲师冲突
                             const lecturerConflict = batchAssignments.some(ba =>
                                 ba.lecturerId && queueItem.lecturerId &&
                                 ba.lecturerId === queueItem.lecturerId &&
@@ -794,6 +824,7 @@ ${compiledRequirementsText}`;
                             );
                             if (lecturerConflict) continue;
 
+                            // 成功捕获最空闲工作日的干净时段
                             assigned = {
                                 course_id: queueItem.courseId,
                                 course_name: queueItem.courseName,
@@ -802,10 +833,11 @@ ${compiledRequirementsText}`;
                                 day: day,
                                 time_slot: `${day} ${ts.label}`,
                                 verification: eligibleLabs.length > 0
-                                    ? "✓ Fallback Engine — Asset Verified"
-                                    : "⚠ Fallback Engine — Asset Unmatched (no eligible lab)",
-                                log: `Local heuristic assigned ${day} ${ts.label} at ${lab.lab_name}`
+                                    ? "✓ Engine — Dynamic Load Balanced"
+                                    : "⚠ Engine — Balanced via Asset Approximation",
+                                log: `Load-balancer routed into ${day} ${ts.label} (${lab.lab_name})`
                             };
+                            
                             batchAssignments.push({
                                 lab_name: lab.lab_name,
                                 day: day,

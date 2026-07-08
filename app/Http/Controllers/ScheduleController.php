@@ -602,6 +602,18 @@ class ScheduleController extends Controller
         ]);
     }
 
+    // 🌟 【提前获取 targetSemesterId】以便验证和清理逻辑使用
+    $date = $request->input('date');
+    $targetSemesterId = $request->input('semester_id');
+    if (!$targetSemesterId && $date) {
+        $matchedSemester = \App\Models\Semester::where('start_date', '<=', $date)
+            ->where('end_date', '>=', $date)
+            ->first();
+        if ($matchedSemester) {
+            $targetSemesterId = $matchedSemester->id;
+        }
+    }
+
     $rules = [
         'schedule_type' => ['required', Rule::in(['enroll','booking','maintenance'])],
         'lab_id' => ['required', 'exists:laboratories,id'],
@@ -627,7 +639,8 @@ class ScheduleController extends Controller
 
     $validator = Validator::make($request->all(), $rules);
 
-    $validator->after(function ($validator) use ($request, $type, $isAllDayMaintenance) {
+    // 🌟 将 $targetSemesterId 注入到闭包中
+    $validator->after(function ($validator) use ($request, $type, $isAllDayMaintenance, $targetSemesterId) {
         if ($validator->errors()->isNotEmpty()) return;
 
         // CRITICAL PROTECTION: Completely bypass overlap check if it's an All-Day Maintenance override
@@ -659,9 +672,12 @@ class ScheduleController extends Controller
 
             // 1. Check against existing Schedules
             $schedules = Schedule::where('lab_id', $labId)
-                ->where(function ($q) use ($dayOfWeek, $date) {
-                    $q->where(function ($sub) use ($dayOfWeek) {
-                        $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
+                ->where(function ($q) use ($dayOfWeek, $date, $targetSemesterId) {
+                    $q->where(function ($sub) use ($dayOfWeek, $targetSemesterId) {
+                        // 🌟 核心修复：周期性排课冲突检测隔离学期
+                        $sub->where('is_recurring', true)
+                            ->where('day_of_week', $dayOfWeek)
+                            ->where('semester_id', $targetSemesterId);
                     })->orWhere(function ($sub) use ($date) {
                         $sub->where('is_recurring', false)->where('date', $date);
                     });
@@ -714,9 +730,12 @@ class ScheduleController extends Controller
 
             // 1. Find all schedules for this lab on this date
             $conflictScheduleIds = Schedule::where('lab_id', $labId)
-                ->where(function ($q) use ($dayOfWeek, $date) {
-                    $q->where(function ($sub) use ($dayOfWeek) {
-                        $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
+                ->where(function ($q) use ($dayOfWeek, $date, $targetSemesterId) {
+                    $q->where(function ($sub) use ($dayOfWeek, $targetSemesterId) {
+                        // 🌟 核心修复：全天维护清理冲突时，周期课也要根据当前学期隔离
+                        $sub->where('is_recurring', true)
+                            ->where('day_of_week', $dayOfWeek)
+                            ->where('semester_id', $targetSemesterId);
                     })->orWhere(function ($sub) use ($date) {
                         $sub->where('is_recurring', false)->where('date', $date);
                     });
@@ -750,15 +769,7 @@ class ScheduleController extends Controller
         }
         // ===== END ALL-DAY MAINTENANCE OVERRIDE =====
 
-        $targetSemesterId = $request->input('semester_id');
-        if (!$targetSemesterId && $date) {
-            $matchedSemester = \App\Models\Semester::where('start_date', '<=', $date)
-                ->where('end_date', '>=', $date)
-                ->first();
-            if ($matchedSemester) {
-                $targetSemesterId = $matchedSemester->id;
-            }
-        }
+        // 🌟 移除了原先放在底部的冗余 $targetSemesterId 计算块，因为已经在顶部处理好了
 
         if ($type === 'enroll') {
             $schedule = Schedule::create([
@@ -842,12 +853,23 @@ class ScheduleController extends Controller
         return redirect()->back()->withErrors(['error' => 'Database Save Failed: ' . $ex->getMessage()])->withInput();
     }
 }
-
 public function getAvailableTimeSlots(Request $request)
 {
     $date = $request->query('date');
     $labId = $request->query('laboratory_id');
     $excludeId = $request->query('exclude_schedule_id');
+    $semesterId = $request->query('semester_id');
+    
+    // 🌟 1. 新增：接收前端传来的 course_id，用来计算这门课到底要上几个小时
+    $courseId = $request->query('course_id');
+    $duration = 1; // 默认按 1 小时步长检测（适用于 booking 或 maintenance）
+
+    if ($courseId) {
+        $course = \App\Models\Course::find($courseId);
+        if ($course) {
+            $duration = intval($course->hours); // 获取课程实际小时数，比如 2
+        }
+    }
 
     $allSlots = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
@@ -855,13 +877,22 @@ public function getAvailableTimeSlots(Request $request)
         return response()->json($allSlots);
     }
 
+    if (!$semesterId) {
+        $semester = \App\Models\Semester::where('start_date', '<=', $date)
+            ->where('end_date', '>=', $date)
+            ->first();
+        $semesterId = $semester ? $semester->id : null;
+    }
+
     $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
 
-    // Fetch occupied slots from schedules — both recurring (day-of-week) and date-specific
+    // 获取占用的排课 (包含周期和单次)
     $occupiedSchedules = Schedule::where('lab_id', $labId)
-        ->where(function ($q) use ($dayOfWeek, $date) {
-            $q->where(function ($sub) use ($dayOfWeek) {
-                $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
+        ->where(function ($q) use ($dayOfWeek, $date, $semesterId) {
+            $q->where(function ($sub) use ($dayOfWeek, $semesterId) {
+                $sub->where('is_recurring', true)
+                    ->where('day_of_week', $dayOfWeek)
+                    ->where('semester_id', $semesterId);
             })->orWhere(function ($sub) use ($date) {
                 $sub->where('is_recurring', false)->where('date', $date);
             });
@@ -871,7 +902,7 @@ public function getAvailableTimeSlots(Request $request)
         })
         ->get(['start_time', 'end_time']);
 
-    // Fetch occupied slots from bookings / maintenance — only date-specific
+    // 获取占用的预订与维护
     $occupiedBookings = Booking::where('lab_id', $labId)
         ->where('date', $date)
         ->when($excludeId, function($q) use ($excludeId) {
@@ -884,13 +915,28 @@ public function getAvailableTimeSlots(Request $request)
 
     $allOccupied = $occupiedSchedules->merge($occupiedBookings);
 
-    $availableSlots = array_filter($allSlots, function($time) use ($allOccupied) {
+    // 🌟 2. 核心防蠢过滤逻辑升级：结合课程时长，进行“向前看”的区间重叠判定
+    $availableSlots = array_filter($allSlots, function($time) use ($allOccupied, $duration) {
+        $startTimeCarbon = \Carbon\Carbon::createFromFormat('H:i', $time);
+        $endTimeCarbon = $startTimeCarbon->copy()->addHours($duration);
+        
+        $proposedStart = $startTimeCarbon->format('H:i:s');
+        $proposedEnd = $endTimeCarbon->format('H:i:s');
+
+        // 越界检查：如果加上课程时长后超过了系统最晚放学时间（18:00），这个起点就不能选
+        // 比如 17:00 点选了，上 2 小时到 19:00 就越界了，直接过滤
+        if ($proposedEnd > '18:00:00') {
+            return false;
+        }
+
+        // 冲突检查：检查预设的整段课程连续时间，是否会拦截到任何已有占用
         foreach ($allOccupied as $slot) {
-            // Standardize format to 5 characters (H:i) to properly compare with array slots
-            $s = substr($slot->start_time, 0, 5);
-            $e = substr($slot->end_time, 0, 5);
-            if ($time >= $s && $time < $e) {
-                return false;
+            $s = \Carbon\Carbon::parse($slot->start_time)->format('H:i:s');
+            $e = \Carbon\Carbon::parse($slot->end_time)->format('H:i:s');
+            
+            // 标准区间重叠判定公式（同 store 方法一致）
+            if ($proposedStart < $e && $proposedEnd > $s) {
+                return false; // 一旦有任何重叠，该起始整点直接淘汰
             }
         }
         return true;
@@ -899,29 +945,41 @@ public function getAvailableTimeSlots(Request $request)
     return response()->json(array_values($availableSlots));
 }
 
-    public function checkOccupiedSlots(Request $request)
+public function checkOccupiedSlots(Request $request)
 {
     $date = $request->query('date');
     $labId = $request->query('laboratory_id');
     $excludeScheduleId = $request->query('exclude_schedule_id');
+    // 🌟 1. 接收前端可能传过来的 semester_id
+    $semesterId = $request->query('semester_id');
 
     if (!$date || !$labId) return response()->json([]);
+
+    // 🌟 2. 双重保险：如果前端没传 semester_id，通过选择的日期自动计算出所属学期
+    if (!$semesterId) {
+        $semester = \App\Models\Semester::where('start_date', '<=', $date)
+            ->where('end_date', '>=', $date)
+            ->first();
+        $semesterId = $semester ? $semester->id : null;
+    }
 
     $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
 
     // 1. Query schedules (both recurring and date-specific) — exclude current schedule when editing
     $schedules = Schedule::where('lab_id', $labId)
         ->when($excludeScheduleId, function ($q) use ($excludeScheduleId) {
-            // Exclude the schedule being edited AND its linked booking (if any)
             $linkedBookingId = Schedule::where('id', $excludeScheduleId)->value('booking_id');
             $q->where('id', '!=', $excludeScheduleId);
             if ($linkedBookingId) {
                 $q->where('booking_id', '!=', $linkedBookingId);
             }
         })
-        ->where(function ($q) use ($dayOfWeek, $date) {
-            $q->where(function ($sub) use ($dayOfWeek) {
-                $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
+        ->where(function ($q) use ($dayOfWeek, $date, $semesterId) {
+            $q->where(function ($sub) use ($dayOfWeek, $semesterId) {
+                // 🌟 3. 周期性排课：加上学期隔离条件
+                $sub->where('is_recurring', true)
+                    ->where('day_of_week', $dayOfWeek)
+                    ->where('semester_id', $semesterId);
             })->orWhere(function ($sub) use ($date) {
                 $sub->where('is_recurring', false)->where('date', $date);
             });
@@ -939,7 +997,6 @@ public function getAvailableTimeSlots(Request $request)
         })
         ->get(['id', 'start_time', 'end_time']);
 
-    // 3. Merge and normalize time format to H:i (strip seconds)
     $occupied = collect();
 
     foreach ($schedules as $s) {
@@ -1038,6 +1095,11 @@ public function getAvailableTimeSlots(Request $request)
 
         // 1) Conflict Check: Schedules Table (Excluding current schedule record)
         $schedules = Schedule::where('lab_id', $labId)
+            // 🌟 关键修改：添加 semester_id 过滤
+            // 只有当存在 semester_id 时（即 enroll 类型），才按学期过滤
+            ->when($request->filled('semester_id'), function ($q) use ($request) {
+                return $q->where('semester_id', $request->input('semester_id'));
+            })
             ->where(function ($q) use ($dayOfWeek, $date) {
                 $q->where(function ($sub) use ($dayOfWeek) {
                     $sub->where('is_recurring', true)->where('day_of_week', $dayOfWeek);
@@ -1045,7 +1107,7 @@ public function getAvailableTimeSlots(Request $request)
                     $sub->where('is_recurring', false)->where('date', $date);
                 });
             })
-            ->where('id', '!=', $schedule->id) // Safely exclude self
+            ->where('id', '!=', $schedule->id) // 排除自身
             ->get(['start_time', 'end_time']);
 
         foreach ($schedules as $s) {
@@ -1118,31 +1180,38 @@ public function getAvailableTimeSlots(Request $request)
         }
 
     } else {
-        // booking or maintenance logic
-        if ($schedule->booking_id) {
-            $bookingData = [
-                'lab_id' => $request->input('lab_id'),
-                'purpose' => $request->input('purpose'),
-                'date' => $request->input('date'),
-                'start_time' => $request->input('start_time'),
-                'end_time' => $request->input('end_time'),
-            ];
+    // 1. 强制标准化时间格式为 H:i:s (解决数据库格式不匹配问题)
+    $startTimeFormatted = \Carbon\Carbon::createFromFormat('H:i', $request->input('start_time'))->format('H:i:s');
+    $endTimeFormatted = \Carbon\Carbon::createFromFormat('H:i', $request->input('end_time'))->format('H:i:s');
 
-            if ($type === 'booking') {
-                $bookingData['booker_name'] = $request->input('booker_name');
-                $bookingData['type'] = 'booking';
-            } else {
-                $bookingData['user_id'] = $request->input('technician_id') ?: null;
-                $bookingData['type'] = 'maintenance';
-            }
-            Booking::where('id', $schedule->booking_id)->update($bookingData);
+    // 2. 更新 Booking 表 (使用格式化后的时间)
+    if ($schedule->booking_id) {
+        $bookingData = [
+            'lab_id' => $request->input('lab_id'),
+            'purpose' => $request->input('purpose'),
+            'date' => $request->input('date'),
+            'start_time' => $startTimeFormatted, // 使用格式化后的
+            'end_time' => $endTimeFormatted,     // 使用格式化后的
+        ];
+
+        if ($type === 'booking') {
+            $bookingData['booker_name'] = $request->input('booker_name');
+            $bookingData['type'] = 'booking';
+        } else {
+            $bookingData['user_id'] = $request->input('technician_id') ?: null;
+            $bookingData['type'] = 'maintenance';
         }
-
-        $data['semester_id'] = $type === 'booking' ? $request->input('semester_id') ?: null : null;
-        $data['course_id'] = null;
-        $data['booking_id'] = $schedule->booking_id;
-        $data['schedule_type'] = $type;
+        Booking::where('id', $schedule->booking_id)->update($bookingData);
     }
+
+    // 3. 更新 Schedule 表 (使用格式化后的时间)
+    $data['semester_id'] = $type === 'booking' ? $request->input('semester_id') ?: null : null;
+    $data['course_id'] = null;
+    $data['booking_id'] = $schedule->booking_id;
+    $data['schedule_type'] = $type;
+    $data['start_time'] = $startTimeFormatted; // 必须更新这里
+    $data['end_time'] = $endTimeFormatted;     // 必须更新这里
+}
 
     // Final Single Update Execution
     $schedule->update($data);
