@@ -33,7 +33,11 @@
                     </tr>
                 </thead>
                 <tbody>
+                    
                     @foreach($requests as $req)
+                    @if((int)auth()->user()->user_role === 5 && $req->user_id !== auth()->id())
+                        @continue
+                    @endif
                     @if($req->status == 1)
                         <form id="approve-form-{{ $req->id }}" action="{{ route('software-requests.approve', $req->id) }}" method="POST" class="d-none">
                             @csrf
@@ -43,7 +47,7 @@
                     <tr>
                         <td>{{ $req->id }}</td>
                         <td>
-                            <div class="fw-semibold">{{ $req->user->name ?? 'N/A' }}</div>
+                            <div class="fw-semibold">{{ $req->user->username ?? $req->user->name ?? 'Unknown User' }}</div>
                             <small class="text-muted">{{ $req->user->email ?? '' }}</small>
                         </td>
                         <td>
@@ -87,29 +91,43 @@
                         <td><small>{{ $req->created_at->format('d M Y, h:i A') }}</small></td>
                         <td>
                             <div class="d-flex justify-content-center align-items-center gap-1">
-                                @if($req->status == 1)
+                                @if(in_array((int)auth()->user()->user_role, [1, 2, 3, 4]))
+                                    @if($req->status == 1)
+                                        <button type="submit" form="approve-form-{{ $req->id }}" class="btn btn-sm btn-success" title="Approve & Add to Inventory">
+                                            <i class="fas fa-check"></i> Approve
+                                        </button>
 
-                                    <button type="submit" form="approve-form-{{ $req->id }}" class="btn btn-sm btn-success" title="Approve & Add to Inventory">
-                                        <i class="fas fa-check"></i> Approve
-                                    </button>
+                                        <form action="{{ route('software-requests.reject', $req->id) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button class="btn btn-sm btn-danger" title="Reject">
+                                                <i class="fas fa-times"></i> Reject
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="text-muted" style="font-size: 12px;">— No actions —</span>
+                                    @endif
 
-                                    <form action="{{ route('software-requests.reject', $req->id) }}" method="POST" class="d-inline">
+                                    <form action="{{ route('software-requests.destroy', $req->id) }}" method="POST" class="d-inline delete-form">
                                         @csrf
-                                        <button class="btn btn-sm btn-danger" title="Reject">
-                                            <i class="fas fa-times"></i> Reject
+                                        @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-secondary" title="Delete">
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </form>
-                                @else
-                                    <span class="text-muted" style="font-size: 12px;">— No actions —</span>
-                                @endif
 
-                                <form action="{{ route('software-requests.destroy', $req->id) }}" method="POST" class="d-inline delete-form">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button class="btn btn-sm btn-outline-secondary" title="Delete">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </form>
+                                @elseif((int)auth()->user()->user_role === 5)
+                                    @if($req->status == 1)
+                                        <span class="badge bg-warning text-dark" style="font-size: 12px;">Pending Approval</span>
+                                    @elseif($req->status == 2)
+                                        <span class="badge bg-success" style="font-size: 12px;">Approved</span>
+                                    @elseif($req->status == 3)
+                                        <span class="badge bg-danger" style="font-size: 12px;">Rejected</span>
+                                    @else
+                                        <span class="text-muted" style="font-size: 12px;">— Read Only —</span>
+                                    @endif
+                                @else
+                                    <span class="text-muted" style="font-size: 12px;">— Unauthorized —</span>
+                                @endif
                             </div>
                         </td>
                     </tr>

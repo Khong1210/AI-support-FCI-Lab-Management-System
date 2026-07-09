@@ -17,12 +17,12 @@
                     <div class="row">
                         <div class="col-md-6 form-group">
                             <label>Reporter</label>
-                            <select name="user_id" class="custom-select @error('user_id') is-invalid @enderror" required>
-                                <option value="">Select user</option>
-                                @foreach($users as $user)
-                                    <option value="{{ $user->id }}" {{ old('user_id') == $user->id ? 'selected' : '' }}>{{ $user->username }}</option>
-                                @endforeach
-                            </select>
+                            <input type="hidden" name="user_id" value="{{ auth()->id() }}">
+                            <input type="text" 
+                                class="form-control" 
+                                value="{{ auth()->user()->username ?? auth()->user()->name }}" 
+                                readonly 
+                                disabled>
                             @error('user_id')<span class="invalid-feedback">{{ $message }}</span>@enderror
                         </div>
                         <div class="col-md-6 form-group">
@@ -44,8 +44,13 @@
                         </div>
                         <div class="col-md-6 form-group">
                             <label>Reported Date</label>
-                            <input type="date" name="reported_date" class="form-control @error('reported_date') is-invalid @enderror" value="{{ old('reported_date', now()->format('Y-m-d')) }}" required>
-                            @error('reported_date')<span class="invalid-feedback">{{ $message }}</span>@enderror
+                            <input type="hidden" name="reported_date" value="{{ now()->format('Y-m-d') }}">
+
+                            <input type="date" 
+                                class="form-control" 
+                                value="{{ now()->format('Y-m-d') }}" 
+                                readonly 
+                                disabled>
                         </div>
                     </div>
                     <div class="form-group">

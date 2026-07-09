@@ -879,7 +879,7 @@
                         <i class="fas fa-cube text-orange-600 text-2xl"></i>
                     </div>
                 </div>
-                <a href="{{ url('/software-requests') }}" class="mt-4 inline-flex items-center text-orange-600 hover:text-orange-700 font-medium text-sm">
+                <a href="{{ url('/software-requests/create') }}" class="mt-4 inline-flex items-center text-orange-600 hover:text-orange-700 font-medium text-sm">
                     View Requests <i class="fas fa-arrow-right ml-2"></i>
                 </a>
             </div>

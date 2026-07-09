@@ -48,7 +48,23 @@ class BookingRequestController extends Controller
             'reason'     => 'required|string|max:1000',
         ]);
 
-        // 3. Persist the database entity bound to the authenticated user session context
+        // 3. Conflict check against existing schedules
+        $conflictingSchedule = $this->findConflictingSchedule(
+            $request->input('lab_id'),
+            $request->input('date'),
+            $request->input('start_time') . ':00',
+            $request->input('end_time') . ':00'
+        );
+
+        if ($conflictingSchedule) {
+            $start = substr($conflictingSchedule->start_time, 0, 5);
+            $end   = substr($conflictingSchedule->end_time, 0, 5);
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['date' => "This time slot overlaps an existing schedule from {$start} to {$end}. Please choose a different time."]);
+        }
+
+        // 4. Persist the database entity bound to the authenticated user session context
         BookingRequest::create([
             'user_id'    => Auth::id(),
             'lab_id'     => $request->input('lab_id'),
@@ -219,6 +235,22 @@ class BookingRequestController extends Controller
                                 ->first();
             $semesterId = $semester?->id;
 
+            // ── Conflict check ─────────────────────────────────────────
+            $conflictingSchedule = $this->findConflictingSchedule(
+                $bookingRequest->lab_id,
+                $date,
+                $bookingRequest->start_time,
+                $bookingRequest->end_time
+            );
+
+            if ($conflictingSchedule) {
+                DB::rollBack();
+                $start = substr($conflictingSchedule->start_time, 0, 5);
+                $end   = substr($conflictingSchedule->end_time, 0, 5);
+                return redirect('/booking-requests')
+                    ->with('error', "Cannot approve — this overlaps an existing schedule from {$start} to {$end}.");
+            }
+
             // ── Create Booking record ─────────────────────────────────────────
             
 
@@ -258,7 +290,7 @@ class BookingRequestController extends Controller
 
             SystemMail::create([
                 'user_id' => $userId,
-                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Approved',
+                'subject' => '[FCI manager] Your Lab Booking Request Has Been Approved 🟢',
                 'body'    => "Your request for {$labName} on {$dateFormatted} ({$timeFormatted}) has been Approved.",
                 'is_read' => false,
                 'type'    => 'booking_status',
@@ -276,6 +308,51 @@ class BookingRequestController extends Controller
             return redirect('/booking-requests')
                 ->with('error', 'Failed to approve request: ' . $e->getMessage());
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // PRIVATE — Conflict Detection Helper
+    // -------------------------------------------------------------------------
+
+    /**
+     * Find a schedule that conflicts with the given time range.
+     * Checks both non-recurring (exact date) and recurring (day-of-week + semester) schedules.
+     *
+     * @param  int    $labId
+     * @param  string $date       Y-m-d
+     * @param  string $startTime  H:i:s
+     * @param  string $endTime    H:i:s
+     * @return Schedule|null
+     */
+    private function findConflictingSchedule($labId, $date, $startTime, $endTime)
+    {
+        $dayOfWeek = Carbon::parse($date)->format('l');
+
+        $semester = Semester::whereDate('start_date', '<=', $date)
+                            ->whereDate('end_date', '>=', $date)
+                            ->first();
+        $semesterId = $semester?->id;
+
+        return Schedule::where('lab_id', $labId)
+            ->where(function ($q) use ($date, $dayOfWeek, $semesterId) {
+                $q->where(function ($sub) use ($date) {
+                    $sub->where('is_recurring', false)
+                        ->whereDate('date', $date);
+                })
+                ->orWhere(function ($sub) use ($dayOfWeek, $semesterId) {
+                    $sub->where('is_recurring', true)
+                        ->where('day_of_week', $dayOfWeek);
+                    if ($semesterId) {
+                        $sub->where(function ($inner) use ($semesterId) {
+                            $inner->where('semester_id', $semesterId)
+                                  ->orWhereNull('semester_id');
+                        });
+                    }
+                });
+            })
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->first();
     }
 
     // -------------------------------------------------------------------------
@@ -335,7 +412,7 @@ class BookingRequestController extends Controller
             // 7. Dispatch the system communication mail to the isolated recipient index
             SystemMail::create([
                 'user_id' => $userId,
-                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected',
+                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected 🔴',
                 'body'    => $body,
                 'is_read' => false,
                 'type'    => 'booking_status',

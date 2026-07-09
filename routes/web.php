@@ -133,7 +133,7 @@ Route::middleware(['auth'])->group(function () {
 
 
     // ── SOFTWARE REQUEST MANAGEMENT HUB (Role 1, 2, 3, 4 — Full Access) ──
-    Route::middleware(['role:1,2,3,4'])->group(function () {
+    Route::middleware(['role:1,2,3,4,5'])->group(function () {
         // Software Request CRUD + Approval Workflow
         Route::resource('software-requests', SoftwareRequestController::class);
         Route::post('software-requests/{id}/approve', [SoftwareRequestController::class, 'approve'])->name('software-requests.approve');

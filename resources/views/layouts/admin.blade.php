@@ -349,14 +349,14 @@
                         <p>Semesters</p>
                     </a>
                 </li>
-                @if(in_array((int)$user->user_role, [1, 2]))
+                {{-- @if(in_array((int)$user->user_role, [1, 2]))
                 <li class="nav-item">
                     <a href="{{ url('/bookings') }}" class="nav-link {{ request()->is('bookings') || request()->is('bookings/*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-calendar-check"></i></div>
                         <p>Bookings</p>
                     </a>
                 </li>
-                @endif
+                @endif --}}
                 <li class="nav-item">
                     <a href="{{ url('/booking-requests') }}" class="nav-link {{ request()->is('booking-requests*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>
@@ -383,13 +383,14 @@
                 </li>
 
                 {{-- Software Requests & Approvals (Admin, Faculty Manager, Lab Staff, Lab Committee only) --}}
-                @if(in_array((int)$user->user_role, [1, 2, 3, 4]))
+                
                 <li class="nav-item">
                     <a href="{{ route('software-requests.create') }}" class="nav-link {{ request()->is('software-requests/create') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-paper-plane"></i></div>
                         <p>Software Request</p>
                     </a>
                 </li>
+                @if(in_array((int)$user->user_role, [1, 2, 3, 4, 5]))
                 <li class="nav-item">
                     <a href="{{ route('software-requests.index') }}" class="nav-link {{ request()->is('software-requests') && !request()->is('software-requests/create') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-clipboard-check"></i></div>
@@ -398,7 +399,7 @@
                             @php
                                 $pendingSwCount = \App\Models\SoftwareRequest::where('status', 1)->count();
                             @endphp
-                            @if($pendingSwCount > 0)
+                            @if($pendingSwCount > 0 && in_array((int)$user->user_role, [1, 2, 3, 4]))
                                 <span style="background:#ef4444; color:#fff; border-radius:999px; font-size:10px; padding:1px 7px; margin-left:6px; font-weight:700;">
                                     {{ $pendingSwCount }}
                                 </span>
@@ -624,7 +625,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 🌟 全域單擊事件：控制絲滑折疊切換
     document.addEventListener('click', function(e) {
         const pushmenu = e.target.closest('[data-widget="pushmenu"]');
         if (pushmenu) {

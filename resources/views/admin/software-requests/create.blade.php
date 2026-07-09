@@ -14,6 +14,8 @@
             
             <form action="{{ route('software-requests.store') }}" method="POST">
                 @csrf
+                <input type="hidden" name="user_id" value="{{ auth()->id() }}">
+                
                 <div class="card-body">
                     
                     @if ($errors->any())

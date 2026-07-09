@@ -1093,10 +1093,7 @@ public function checkOccupiedSlots(Request $request)
         $newEnd = substr($request->input('end_time'), 0, 5);
         $dayOfWeek = \Carbon\Carbon::parse($date)->format('l');
 
-        // 1) Conflict Check: Schedules Table (Excluding current schedule record)
         $schedules = Schedule::where('lab_id', $labId)
-            // 🌟 关键修改：添加 semester_id 过滤
-            // 只有当存在 semester_id 时（即 enroll 类型），才按学期过滤
             ->when($request->filled('semester_id'), function ($q) use ($request) {
                 return $q->where('semester_id', $request->input('semester_id'));
             })
@@ -1107,7 +1104,7 @@ public function checkOccupiedSlots(Request $request)
                     $sub->where('is_recurring', false)->where('date', $date);
                 });
             })
-            ->where('id', '!=', $schedule->id) // 排除自身
+            ->where('id', '!=', $schedule->id) 
             ->get(['start_time', 'end_time']);
 
         foreach ($schedules as $s) {
@@ -1180,18 +1177,16 @@ public function checkOccupiedSlots(Request $request)
         }
 
     } else {
-    // 1. 强制标准化时间格式为 H:i:s (解决数据库格式不匹配问题)
     $startTimeFormatted = \Carbon\Carbon::createFromFormat('H:i', $request->input('start_time'))->format('H:i:s');
     $endTimeFormatted = \Carbon\Carbon::createFromFormat('H:i', $request->input('end_time'))->format('H:i:s');
 
-    // 2. 更新 Booking 表 (使用格式化后的时间)
     if ($schedule->booking_id) {
         $bookingData = [
             'lab_id' => $request->input('lab_id'),
             'purpose' => $request->input('purpose'),
             'date' => $request->input('date'),
-            'start_time' => $startTimeFormatted, // 使用格式化后的
-            'end_time' => $endTimeFormatted,     // 使用格式化后的
+            'start_time' => $startTimeFormatted, 
+            'end_time' => $endTimeFormatted,     
         ];
 
         if ($type === 'booking') {
@@ -1209,8 +1204,8 @@ public function checkOccupiedSlots(Request $request)
     $data['course_id'] = null;
     $data['booking_id'] = $schedule->booking_id;
     $data['schedule_type'] = $type;
-    $data['start_time'] = $startTimeFormatted; // 必须更新这里
-    $data['end_time'] = $endTimeFormatted;     // 必须更新这里
+    $data['start_time'] = $startTimeFormatted; 
+    $data['end_time'] = $endTimeFormatted;     
 }
 
     // Final Single Update Execution
