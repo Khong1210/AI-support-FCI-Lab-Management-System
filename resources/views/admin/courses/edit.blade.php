@@ -9,7 +9,7 @@
     <div class="card-header">
         <h3 class="card-title"><i class="fas fa-edit mr-2"></i>Edit Course</h3>
     </div>
-    <form action="{{ url('/admin/courses/' . $course->id) }}" method="POST">
+    <form action="{{ url('/management/courses/' . $course->id) }}" method="POST">
         @csrf
         @method('PUT')
         <div class="card-body">
@@ -39,7 +39,7 @@
         </div>
         <div class="card-footer">
             <button type="submit" class="btn btn-primary">Update Course</button>
-            <a href="{{ url('/admin/courses') }}" class="btn btn-secondary float-right">Cancel</a>
+            <a href="{{ url('/management/courses') }}" class="btn btn-secondary float-right">Cancel</a>
         </div>
     </form>
 </div>

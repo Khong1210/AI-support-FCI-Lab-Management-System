@@ -11,7 +11,7 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-cube mr-2"></i>Add Software</h3>
             </div>
-            <form action="{{ url('/admin/software') }}" method="POST">
+            <form action="{{ url('/software') }}" method="POST">
                 @csrf
                 <div class="card-body">
                     <div class="row">
@@ -58,7 +58,7 @@
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save mr-1"></i> Save Software
                     </button>
-                    <a href="{{ url('/admin/software') }}" class="btn btn-secondary float-right">
+                    <a href="{{ url('/software') }}" class="btn btn-secondary float-right">
                         <i class="fas fa-times mr-1"></i> Cancel
                     </a>
                 </div>

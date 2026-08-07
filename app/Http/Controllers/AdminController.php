@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Booking;
+use App\Models\BookingRequest;
 use App\Models\Course;
 use App\Models\Equipment;
 use App\Models\Laboratory;
@@ -26,19 +27,116 @@ class AdminController extends Controller
 
     public function dashboard()
     {
-        return view('admin.dashboard', [
-            'counts' => [
-                'users' => User::count(),
-                'equipment' => Equipment::count(),
-                'software' => Software::count(),
-                'laboratories' => Laboratory::count(),
-                'courses' => Course::count(),
-                'bookings' => Booking::count(),
-                'reports' => Report::count(),
-                'schedules' => Schedule::count(),
-                'requests' => SoftwareRequest::count(),
-            ],
-        ]);
+        $user = auth()->user();
+        $role = (int) $user->user_role;
+
+        // ── Role 1 (Admin) — unchanged, full system overview ──
+        if ($role === 1) {
+            return view('admin.dashboard', [
+                'counts' => [
+                    'users'         => User::count(),
+                    'equipment'     => Equipment::count(),
+                    'software'      => Software::count(),
+                    'laboratories'  => Laboratory::count(),
+                    'courses'       => Course::count(),
+                    'bookings'      => Booking::count(),
+                    'reports'       => Report::count(),
+                    'schedules'     => Schedule::count(),
+                    'requests'      => SoftwareRequest::count(),
+                ],
+            ]);
+        }
+
+        // ── Role 2 (Faculty Manager) — approvals + academic oversight ──
+        if ($role === 2) {
+            return view('admin.dashboard', [
+                'counts' => [
+                    'pending_booking_requests'  => BookingRequest::where('status', 'pending')->count(),
+                    'pending_software_requests' => SoftwareRequest::where('status', SoftwareRequest::STATUS_PENDING)->count(),
+                    'active_courses'            => Course::count(),
+                    'active_schedules'          => Schedule::count(),
+                    'equipment'                 => Equipment::count(),
+                    'software'                  => Software::count(),
+                    'laboratories'              => Laboratory::count(),
+                    'reports'                   => Report::count(),
+                ],
+                'pendingBookings'  => BookingRequest::with('user', 'laboratory')
+                    ->where('status', 'pending')
+                    ->latest()
+                    ->take(5)
+                    ->get(),
+                'pendingSoftware'  => SoftwareRequest::with('user', 'software')
+                    ->where('status', SoftwareRequest::STATUS_PENDING)
+                    ->latest()
+                    ->take(5)
+                    ->get(),
+            ]);
+        }
+
+        // ── Role 3 (Lab Staff) — fault reports + inventory ──
+        if ($role === 3) {
+            return view('admin.dashboard', [
+                'counts' => [
+                    'open_reports' => Report::where('status', 1)->count(),
+                    'equipment'    => Equipment::count(),
+                    'software'     => Software::count(),
+                    'laboratories' => Laboratory::count(),
+                ],
+                'openReports' => Report::with('user', 'laboratory')
+                    ->where('status', 1)
+                    ->latest()
+                    ->take(5)
+                    ->get(),
+            ]);
+        }
+
+        // ── Role 4 (Lab Committee) — oversight across fault reports, equipment, software, bookings ──
+        if ($role === 4) {
+            return view('admin.dashboard', [
+                'counts' => [
+                    'open_reports'       => Report::where('status', 1)->count(),
+                    'in_progress_reports' => Report::where('status', 2)->count(),
+                    'resolved_reports'   => Report::where('status', 3)->count(),
+                    'equipment'          => Equipment::count(),
+                    'software'           => Software::count(),
+                    'active_bookings'    => Booking::count(),
+                ],
+                'openReports' => Report::with('user', 'laboratory')
+                    ->where('status', 1)
+                    ->latest()
+                    ->take(5)
+                    ->get(),
+            ]);
+        }
+
+        // ── Role 5 (Lecturer) — own bookings, requests, reports only ──
+        if ($role === 5) {
+            $userId = $user->id;
+            return view('admin.dashboard', [
+                'counts' => [
+                    'my_upcoming_bookings'     => Booking::where('user_id', $userId)
+                        ->where('date', '>=', now()->toDateString())
+                        ->count(),
+                    'my_pending_requests'      => BookingRequest::where('user_id', $userId)
+                        ->where('status', 'pending')
+                        ->count(),
+                    'my_software_requests'     => SoftwareRequest::where('user_id', $userId)->count(),
+                    'my_fault_reports'         => Report::where('user_id', $userId)->count(),
+                ],
+                'myRecentBookings' => Booking::where('user_id', $userId)
+                    ->with('laboratory')
+                    ->latest()
+                    ->take(5)
+                    ->get(),
+                'myRecentReports' => Report::where('user_id', $userId)
+                    ->latest()
+                    ->take(3)
+                    ->get(),
+            ]);
+        }
+
+        // Fallback — shouldn't happen but guard against unhandled roles
+        return view('admin.dashboard', ['counts' => []]);
     }
 
    public function users(Request $request)
@@ -88,7 +186,7 @@ class AdminController extends Controller
             'user_role' => $request->input('user_role'),
         ]);
 
-        return redirect('/admin/users')->with('status', 'User created successfully.');
+        return redirect('/management/users')->with('status', 'User created successfully.');
     }
 
     public function editUser(User $user)
@@ -120,13 +218,13 @@ class AdminController extends Controller
 
         $user->update($data);
 
-        return redirect('/admin/users')->with('status', 'User updated successfully.');
+        return redirect('/management/users')->with('status', 'User updated successfully.');
     }
 
     public function destroyUser(User $user)
     {
         $user->delete();
 
-        return redirect('/admin/users')->with('status', 'User deleted successfully.');
+        return redirect('/management/users')->with('status', 'User deleted successfully.');
     }
 }

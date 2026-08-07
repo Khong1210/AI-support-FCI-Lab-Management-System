@@ -1,0 +1,141 @@
+@extends('layouts.admin')
+
+@section('title', 'Software Requests')
+@section('page-title', 'Software Requests')
+@section('breadcrumb', 'Software Requests')
+
+@section('content')
+<div class="bg-white shadow rounded p-5">
+
+    <div class="flex items-center justify-between mb-4">
+        <h4 class="text-lg font-semibold text-gray-700">
+            <i class="fas fa-clipboard-check mr-2 text-blue-500"></i> Software Approval Queue
+        </h4>
+        <a href="{{ route('software-requests.create') }}" class="btn btn-primary text-sm px-4 py-1.5">
+            <i class="fas fa-paper-plane mr-1"></i> New Request
+        </a>
+    </div>
+
+    @if($requests->isEmpty())
+        <p class="text-gray-500 text-center py-6">No software requests yet.</p>
+    @else
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Requester</th>
+                        <th>Software</th>
+                        <th>Status</th>
+                        <th>Allocated Lab</th>
+                        <th>Submitted</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                    @foreach($requests as $req)
+                    @if((int)auth()->user()->user_role === 5 && $req->user_id !== auth()->id())
+                        @continue
+                    @endif
+                    @if($req->status == 1)
+                        <form id="approve-form-{{ $req->id }}" action="{{ route('software-requests.approve', $req->id) }}" method="POST" class="d-none">
+                            @csrf
+                        </form>
+                    @endif
+
+                    <tr>
+                        <td>{{ $req->id }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ $req->user->username ?? $req->user->name ?? 'Unknown User' }}</div>
+                            <small class="text-muted">{{ $req->user->email ?? '' }}</small>
+                        </td>
+                        <td>
+                            @if($req->software && $req->software_id !== 0)
+                                <span class="badge bg-info">{{ $req->software->software_name }}</span>
+                            @else
+                                <span class="text-muted">{{ $req->version }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($req->status == 1)
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            @elseif($req->status == 2)
+                                <span class="badge bg-success">Approved</span>
+                            @elseif($req->status == 3)
+                                <span class="badge bg-danger">Rejected</span>
+                            @endif
+                        </td>
+
+                        <td>
+                            @if($req->status == 1)
+
+                                <select name="lab_id" form="approve-form-{{ $req->id }}" class="form-select form-select-sm" style="max-width: 180px;" required>
+                                    <option value="" disabled selected>Select Lab...</option>
+                                    @foreach($labs as $lab)
+                                        <option value="{{ $lab->id }}">{{ $lab->lab_name }}</option>
+                                    @endforeach
+                                </select>
+                            @elseif($req->status == 2 && $req->software)
+
+                                <span class="fw-semibold text-dark">
+                                    <i class="fas fa-door-open text-secondary mr-1"></i>
+                                    {{ $req->software->laboratory->lab_name ?? 'Lab ' . $req->software->lab_id }}
+                                </span>
+                            @else
+
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+
+                        <td><small>{{ $req->created_at->format('d M Y, h:i A') }}</small></td>
+                        <td>
+                            <div class="d-flex justify-content-center align-items-center gap-1">
+                                @if(in_array((int)auth()->user()->user_role, [1, 2, 3, 4]))
+                                    @if($req->status == 1)
+                                        <button type="submit" form="approve-form-{{ $req->id }}" class="btn btn-sm btn-success" title="Approve & Add to Inventory">
+                                            <i class="fas fa-check"></i> Approve
+                                        </button>
+
+                                        <form action="{{ route('software-requests.reject', $req->id) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button class="btn btn-sm btn-danger" title="Reject">
+                                                <i class="fas fa-times"></i> Reject
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="text-muted" style="font-size: 12px;">— No actions —</span>
+                                    @endif
+
+                                    <form action="{{ route('software-requests.destroy', $req->id) }}" method="POST" class="d-inline delete-form">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-secondary" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+
+                                @elseif((int)auth()->user()->user_role === 5)
+                                    @if($req->status == 1)
+                                        <span class="badge bg-warning text-dark" style="font-size: 12px;">Pending Approval</span>
+                                    @elseif($req->status == 2)
+                                        <span class="badge bg-success" style="font-size: 12px;">Approved</span>
+                                    @elseif($req->status == 3)
+                                        <span class="badge bg-danger" style="font-size: 12px;">Rejected</span>
+                                    @else
+                                        <span class="text-muted" style="font-size: 12px;">— Read Only —</span>
+                                    @endif
+                                @else
+                                    <span class="text-muted" style="font-size: 12px;">— Unauthorized —</span>
+                                @endif
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+
+</div>
+@stop

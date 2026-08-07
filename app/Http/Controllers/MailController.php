@@ -11,7 +11,7 @@ class MailController extends Controller
 {
     /**
      * Show the user's system announcements and notifications.
-     * Accessible at GET /admin/mail
+     * Accessible at GET /management/mail
      */
     public function index(Request $request)
     {

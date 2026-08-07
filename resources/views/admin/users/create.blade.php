@@ -11,7 +11,7 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-user-plus mr-2"></i>Add New User</h3>
             </div>
-            <form action="{{ url('/admin/users') }}" method="POST">
+            <form action="{{ url('/management/users') }}" method="POST">
                 @csrf
                 <div class="card-body">
                     @if ($errors->any())
@@ -82,7 +82,7 @@
                     <button type="submit" class="btn btn-success">
                         <i class="fas fa-check mr-1"></i> Add User
                     </button>
-                    <a href="{{ url('/admin/users') }}" class="btn btn-secondary">
+                    <a href="{{ url('/management/users') }}" class="btn btn-secondary">
                         <i class="fas fa-times mr-1"></i> Cancel
                     </a>
                 </div>

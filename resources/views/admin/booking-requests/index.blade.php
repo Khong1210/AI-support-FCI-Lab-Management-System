@@ -95,7 +95,7 @@
 
 {{-- ── Filter Bar ── --}}
 <div class="filter-bar">
-    <form method="GET" action="{{ url('/admin/booking-requests') }}" class="row g-2 align-items-end">
+    <form method="GET" action="{{ url('/booking-requests') }}" class="row g-2 align-items-end">
         <div class="col-md-4">
             <label class="form-label mb-1 small fw-semibold text-muted">Status</label>
             <select name="status" class="form-select form-select-sm">
@@ -120,10 +120,10 @@
             <button type="submit" class="btn btn-primary btn-sm">
                 <i class="fas fa-filter me-1"></i>Filter
             </button>
-            <a href="{{ url('/admin/booking-requests') }}" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ url('/booking-requests') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-redo me-1"></i>Clear
             </a>
-            <a href="{{ url('/admin/booking-requests/create') }}" class="btn btn-outline-info btn-sm ms-auto">
+            <a href="{{ url('/booking-requests/create') }}" class="btn btn-outline-info btn-sm ms-auto">
                 <i class="fas fa-plus me-1"></i>Add Request
             </a>
         </div>
@@ -230,7 +230,7 @@
                             <td class="text-center">
                                 @if($req->status === 'pending')
                                     {{-- Approve Action Trigger --}}
-                                    <form action="{{ url('/admin/booking-requests/' . $req->id . '/approve') }}" method="POST" class="d-inline-block approve-form">
+                                    <form action="{{ url('/booking-requests/' . $req->id . '/approve') }}" method="POST" class="d-inline-block approve-form">
                                         @csrf
                                         @method('PUT')
                                         <button type="submit" class="btn-approve me-1" title="Approve this request">
@@ -239,7 +239,7 @@
                                     </form>
 
                                     {{-- Reject Action Trigger --}}
-                                    <form action="{{ url('/admin/booking-requests/' . $req->id . '/reject') }}" method="POST" class="d-inline-block reject-form">
+                                    <form action="{{ url('/booking-requests/' . $req->id . '/reject') }}" method="POST" class="d-inline-block reject-form">
                                         @csrf
                                         @method('PUT')
                                         <button type="submit" class="btn btn-sm btn-danger" title="Reject this request" onclick="return confirm('Are you sure you want to reject this request?')">
@@ -336,7 +336,7 @@ $(function () {
         $('#modal-date').text(date);
 
         // Set the form action dynamically
-        $('#rejectForm').attr('action', '/admin/booking-requests/' + reqId + '/reject');
+        $('#rejectForm').attr('action', '/booking-requests/' + reqId + '/reject');
     });
 
     // ── SweetAlert2 confirm for Approve ──

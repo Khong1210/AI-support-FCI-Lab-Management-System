@@ -8,12 +8,12 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title">Report List</h3>
-            <a href="{{ url('/admin/reports/add') }}" class="btn btn-primary btn-sm">
+            <a href="{{ url('/reports/add') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Report Problem
             </a>
         </div>
         <div class="card-body">
-            <form method="GET" action="{{ url('/admin/reports') }}" class="form-inline mb-3">
+            <form method="GET" action="{{ url('/reports') }}" class="form-inline mb-3">
                 <div class="form-group mr-2">
                     <select name="status" class="form-control">
                         <option value="">All statuses</option>
@@ -31,7 +31,7 @@
                     </select>
                 </div>
                 <button type="submit" class="btn btn-secondary">Filter</button>
-                <a href="{{ url('/admin/reports') }}" class="btn btn-link text-muted ml-2">Clear</a>
+                <a href="{{ url('/reports') }}" class="btn btn-link text-muted ml-2">Clear</a>
             </form>
 
             <div class="table-responsive">
@@ -45,7 +45,7 @@
                             <th>Description</th>
                             <th>Reported Date</th>
                             <th>Status</th>
-                            @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
+                            @if (in_array((int)auth()->user()->user_role, [1, 2, 3, 4]))
                                 <th>Actions</th>
                             @endif
                         </tr>
@@ -62,11 +62,11 @@
                                 <td>{{ $statuses[$report->status] ?? 'Unknown' }}</td>
                                 
                                 {{-- Display action controller operational items only to Roles 1, 3, and 4 --}}
-                                @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
+                                @if (in_array((int)auth()->user()->user_role, [1, 2, 3, 4]))
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
                                             @if($report->status == 1)
-                                                <form action="{{ url('/admin/reports/' . $report->id . '/progress') }}" method="POST" class="d-inline-block">
+                                                <form action="{{ url('/reports/' . $report->id . '/progress') }}" method="POST" class="d-inline-block">
                                                     @csrf
                                                     @method('PUT')
                                                     <button type="submit" class="btn btn-sm btn-warning">Progress</button>
@@ -74,18 +74,20 @@
                                             @endif
                                             
                                             @if($report->status != 3)
-                                                <form action="{{ url('/admin/reports/' . $report->id . '/resolve') }}" method="POST" class="d-inline-block" style="margin-left: 2px;">
+                                                <form action="{{ url('/reports/' . $report->id . '/resolve') }}" method="POST" class="d-inline-block" style="margin-left: 2px;">
                                                     @csrf
                                                     @method('PUT')
                                                     <button type="submit" class="btn btn-sm btn-success">Resolve</button>
                                                 </form>
                                             @endif
                                             
-                                            <form action="{{ url('/admin/reports/' . $report->id) }}" method="POST" class="d-inline-block delete-form" style="margin-left: 2px;">
+                                            @if (in_array((int)auth()->user()->user_role, [1, 3, 4]))
+                                            <form action="{{ url('/reports/' . $report->id) }}" method="POST" class="d-inline-block delete-form" style="margin-left: 2px;">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this report?')">Delete</button>
                                             </form>
+                                            @endif
                                         </div>
                                     </td>
                                 @endif

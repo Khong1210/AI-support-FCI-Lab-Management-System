@@ -8,9 +8,11 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h3 class="card-title">Equipment List</h3>
-            <a href="{{ url('/admin/equipment/add') }}" class="btn btn-primary btn-sm">
+            @auth @if(in_array((int)auth()->user()->user_role, [1, 2, 4]))
+            <a href="{{ url('/equipment/add') }}" class="btn btn-primary btn-sm">
                 <i class="fas fa-plus mr-1"></i> Add Equipment
             </a>
+            @endif @endauth
         </div>
         <div class="card-body">
             <form method="GET" class="form-inline mb-3">
@@ -56,9 +58,9 @@
                                 <td>{{ $statuses[$item->status] ?? 'Unknown' }}</td>
                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2 || (int)auth()->user()->user_role === 3 || (int)auth()->user()->user_role === 4)
                                     <td>
-                                        <a href="{{ url('/admin/equipment/' . $item->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
+                                        <a href="{{ url('/equipment/' . $item->id . '/edit') }}" class="btn btn-sm btn-info">Edit</a>
                                         @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2 || (int)auth()->user()->user_role === 4)
-                                            <form action="{{ url('/admin/equipment/' . $item->id) }}" method="POST" class="d-inline-block delete-form">
+                                            <form action="{{ url('/equipment/' . $item->id) }}" method="POST" class="d-inline-block delete-form">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>

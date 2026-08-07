@@ -10,7 +10,7 @@
             <h3 class="card-title">Edit Software</h3>
         </div>
         <div class="card-body">
-            <form action="{{ url('/admin/software/' . $software->id) }}" method="POST">
+            <form action="{{ url('/software/' . $software->id) }}" method="POST">
                 @csrf
                 @method('PUT')
                 <div class="form-group">
@@ -49,7 +49,7 @@
                     @error('status')<span class="invalid-feedback">{{ $message }}</span>@enderror
                 </div>
                 <button class="btn btn-success">Update Software</button>
-                <a href="{{ url('/admin/software') }}" class="btn btn-secondary">Cancel</a>
+                <a href="{{ url('/software') }}" class="btn btn-secondary">Cancel</a>
             </form>
         </div>
     </div>

@@ -7,10 +7,12 @@
 @push('styles')
 <style>
     /* Compact schedule table styles inspired by the prototype */
-    .schedule-matrix {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
+
+    .schedule-matrix,
+    .weekly-schedule-matrix table {
+        table-layout: fixed !important;
+        width: 100% !important;
+        border-collapse: collapse !important;
     }
     .schedule-matrix th, 
     .schedule-matrix td {
@@ -29,14 +31,23 @@
     .schedule-matrix td {
         height: 40px;
         background-color: #ffffff;
+        word-break: break-word !important;
+        overflow: hidden !important;
     }
+
     .schedule-matrix .time-col {
         background-color: #f4f6f9;
         font-weight: bold;
         text-align: center;
         vertical-align: middle;
-        width: 75px;
+        width: 80px !important;
+        min-width: 80px !important;
+        max-width: 80px !important;
         font-size: 0.75rem;
+    }
+
+    .schedule-matrix th:not(.time-col) {
+        width: calc((100% - 80px) / 7) !important;
     }
     
     .schedule-block {
@@ -51,6 +62,9 @@
         height: 100%;
         position: relative;
         overflow: hidden;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
     }
     .schedule-block strong {
         display: block;
@@ -59,13 +73,15 @@
         margin-bottom: 1px;
         overflow: hidden;
         text-overflow: ellipsis;
-        
+        white-space: normal;
+        word-break: break-word;
     }
     .schedule-block span {
         display: block;
         color: #555;
         font-size: 0.65rem;
-        white-space: nowrap;
+        white-space: normal;
+        word-break: break-word;
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -103,20 +119,27 @@
     
     /* Calendar Grid for right column */
     .mini-calendar {
-        width: 100%;
+        table-layout: fixed !important;
+        width: 100% !important;
         text-align: center;
         border-collapse: collapse;
+    }
+    .mini-calendar th, 
+    .mini-calendar td {
+        width: 14.285% !important;
+        text-align: center;
+        vertical-align: middle;
+        word-break: break-all;
+        padding: 5px 0;
+        border: 1px solid #dee2e6;
     }
     .mini-calendar th {
         font-weight: 600;
         color: #495057;
-        padding: 5px;
         background-color: #f4f6f9;
-        border: 1px solid #dee2e6;
     }
     .mini-calendar td {
         padding: 4px;
-        border: 1px solid #dee2e6;
     }
     .mini-calendar .text-muted {
         color: #adb5bd !important;
@@ -173,7 +196,7 @@
 
 @section('content')
 <div class="filter-bar">
-    <form action="{{ url('/admin/schedules') }}" method="GET" class="d-flex align-items-center w-100 m-0">
+    <form action="{{ url('/schedules') }}" method="GET" class="d-flex align-items-center w-100 m-0">
         <input type="hidden" name="date" value="{{ $currentDate->format('Y-m-d') }}">
         
         <div class="d-flex align-items-center mr-4">
@@ -220,7 +243,7 @@
                     elseif (!empty($selectedLecturerId)) { $resetParams['view_target'] = 'lec_' . $selectedLecturerId; }
                     $resetParams['date'] = $currentDate->format('Y-m-d');
                 @endphp
-                <a href="{{ url('/admin/schedules?' . http_build_query($resetParams)) }}" class="btn btn-sm btn-outline-secondary ml-3 py-0">Reset</a>
+                <a href="{{ url('/schedules?' . http_build_query($resetParams)) }}" class="btn btn-sm btn-outline-secondary ml-3 py-0">Reset</a>
             </div>
         @endif
     </form>
@@ -242,7 +265,9 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary mr-2" id="toggle-sidebar-btn" title="Toggle Sidebar">
                         <i class="fas fa-expand-arrows-alt"></i>
                     </button>
-                    <a href="{{ url('/admin/schedules/add') }}" class="btn btn-sm btn-primary mr-2"><i class="fas fa-plus"></i> Add</a>
+                    @auth @if(in_array((int)auth()->user()->user_role, [1, 2]))
+                    <a href="{{ url('/schedules/add') }}" class="btn btn-sm btn-primary mr-2"><i class="fas fa-plus"></i> Add</a>
+                    @endif @endauth
                     
                     <div class="btn-group btn-group-sm">
                         @php
@@ -256,17 +281,17 @@
                         @if($selectedSemesterId && !($canGoPrevWeek ?? true))
                             <a href="#" class="btn btn-default disabled"><i class="fas fa-chevron-left"></i> Prev</a>
                         @else
-                            <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => $prevWeek]))) }}" class="btn btn-default">
+                            <a href="{{ url('/schedules?' . http_build_query(array_merge($linkParams, ['date' => $prevWeek]))) }}" class="btn btn-default">
                                 <i class="fas fa-chevron-left"></i> Prev
                             </a>
                         @endif
 
-                        <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => \Carbon\Carbon::now()->format('Y-m-d')]))) }}" class="btn btn-default">Current</a>
+                        <a href="{{ url('/schedules?' . http_build_query(array_merge($linkParams, ['date' => \Carbon\Carbon::now()->format('Y-m-d')]))) }}" class="btn btn-default">Current</a>
 
                         @if($selectedSemesterId && !($canGoNextWeek ?? true))
                             <a href="#" class="btn btn-default disabled">Next <i class="fas fa-chevron-right"></i></a>
                         @else
-                            <a href="{{ url('/admin/schedules?' . http_build_query(array_merge($linkParams, ['date' => $nextWeek]))) }}" class="btn btn-default">
+                            <a href="{{ url('/schedules?' . http_build_query(array_merge($linkParams, ['date' => $nextWeek]))) }}" class="btn btn-default">
                                 Next <i class="fas fa-chevron-right"></i>
                             </a>
                         @endif
@@ -274,7 +299,7 @@
                 </div>
             </div>
             
-            <div class="card-body p-0 table-responsive">
+            <div class="card-body p-0" style="overflow-x: hidden !important;">
                 <table class="schedule-matrix m-0">
                     <thead>
                         <tr>
@@ -291,7 +316,7 @@
                     <tbody>
                         @foreach($timetable as $timeSlot => $daysRow)
                             @php
-                                // 💡 1. 如果時段到了 18:00 或更晚，直接跳過不畫，完美收官在 05:00 PM
+
                                 if (\Carbon\Carbon::createFromFormat('H:i', $timeSlot)->hour >= 18) {
                                     continue;
                                 }
@@ -310,12 +335,11 @@
                                         $slot = $daysRow[$day]; 
                                     @endphp
                                     
-                                    {{-- 如果是被合併的儲存格，直接跳過 --}}
+
                                     @if($slot['type'] === 'skip')
                                         @continue
                                     @endif
 
-                                    {{-- 💡 2. 動態綁定外層 <td> 的背景色樣式 --}}
                                     <td class="{{ isset($weekDates[$day]) && $weekDates[$day]['is_today'] ? 'bg-light' : '' }} {{ $slot['type'] === 'enroll' ? 'bg-enroll-td' : '' }} {{ $slot['type'] === 'booking' ? 'bg-booking-td' : '' }} {{ $slot['type'] === 'maintenance' ? 'bg-maintenance-td' : '' }}" rowspan="{{ $slot['rowspan'] }}" style="padding: 0; vertical-align: top;">
                                         
                                         @if($slot['type'] === 'none')
@@ -323,24 +347,24 @@
                                             
                                         @elseif($slot['type'] === 'maintenance')
                                             @php
-                                                // 如果 data 是字串（系統全天關閉），或是 Booking 物件
+
                                                 $mPurpose = (is_object($slot['data']) && isset($slot['data']->purpose)) ? $slot['data']->purpose : (is_string($slot['data']) ? $slot['data'] : 'Maintenance');
                                                 $mStart = (is_object($slot['data']) && isset($slot['data']->start_time)) ? substr($slot['data']->start_time, 0, 5) : $timeSlot;
                                                 $mEnd = (is_object($slot['data']) && isset($slot['data']->end_time)) ? substr($slot['data']->end_time, 0, 5) : '';
                                                 $labName = (is_object($slot['data']) && isset($slot['data']->laboratory)) ? ($slot['data']->laboratory->lab_name ?? 'Room') : ($selectedLab->lab_name ?? 'Room');
                                             @endphp
-                                            {{-- 使用 Flex 佈局確保 Edit 按鈕永遠靠最下 --}}
+
                                             <div class="schedule-block maintenance" style="height: 100%; min-height: 60px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; border: none;">
                                                 <div>
                                                     <strong class="d-block">Maintenance ({{ $labName }})</strong>
                                                     <span class="d-block small text-muted">{{ $mStart }} - {{ $mEnd }}</span>
                                                     <span class="d-block small">{{ $mPurpose }}</span>
                                                 </div>
-                                                {{-- 💡 3. 如果後端有抓到對應的 schedule_id，就渲染 Edit 按鈕 --}}
+
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @endif
                                                 @endif
@@ -359,11 +383,11 @@
                                                     <span class="d-block small text-muted">{{ $bStart }} - {{ $bEnd }}</span>
                                                     <span class="d-block small">Venue: {{ $labName }}</span>
                                                 </div>
-                                                {{-- 💡 4. Booking 的 Edit 按鈕 --}}
+
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @endif
                                                 @endif
@@ -378,16 +402,16 @@
                                                     <span class="d-block small">Semester: {{ $slot['data']->semester->name ?? 'None' }}</span>
                                                     <span class="d-block small">Venue: {{ $slot['data']->laboratory->lab_name ?? 'None' }}</span>
                                                 </div>
-                                                {{-- 💡 5. Enroll 課程的 Edit 按鈕 --}}
+
                                                 @if ((int)auth()->user()->user_role === 1 || (int)auth()->user()->user_role === 2)
 
                                                     @if(!empty($slot['schedule_id']))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @elseif(isset($slot['data']->id))
                                                         <div class="schedule-actions mt-2 text-right">
-                                                            <a href="{{ url('/admin/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
+                                                            <a href="{{ url('/schedules/' . $slot['data']->id . '/edit') }}" class="btn btn-xs btn-primary"><i class="fas fa-edit"></i> Edit</a>
                                                         </div>
                                                     @endif
                                                 @endif
@@ -410,28 +434,27 @@
       <div class="card card-outline shadow-sm mb-3">
             <div class="card-header border-0 d-flex justify-content-between align-items-center p-2 bg-light">
                 @php
-                    // 建立乾淨的篩選參數陣列
+
                     $linkParams = [];
                     if (!empty($selectedSemesterId)) { 
                         $linkParams['semester_id'] = $selectedSemesterId; 
                     }
                     
-                    // 【核心修正】小月曆改用二合一的 view_target 來鎖定目前的視角 (Lab 或是 Lecturer)
+
                     if (!empty($selectedLabId)) { 
                         $linkParams['view_target'] = 'lab_' . $selectedLabId; 
                     } elseif (!empty($selectedLecturerId)) { 
                         $linkParams['view_target'] = 'lec_' . $selectedLecturerId; 
                     }
 
-                    // 使用 http_build_query 打包，前面不手動拼接 ?date=
                     $qs = !empty($linkParams) ? '&' . http_build_query($linkParams) : '';
                 @endphp
                 
-                <a href="{{ url('/admin/schedules?date=' . (Str::contains($prevMonth, '&') ? $prevMonth : $prevMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
+                <a href="{{ url('/schedules?date=' . (Str::contains($prevMonth, '&') ? $prevMonth : $prevMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
                     <i class="fas fa-chevron-left"></i>
                 </a>
                 <strong style="font-size: 0.9rem;">{{ $monthName }}</strong>
-                <a href="{{ url('/admin/schedules?date=' . (Str::contains($nextMonth, '&') ? $nextMonth : $nextMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
+                <a href="{{ url('/schedules?date=' . (Str::contains($nextMonth, '&') ? $nextMonth : $nextMonth . $qs)) }}" class="btn btn-sm btn-default py-0 px-2">
                     <i class="fas fa-chevron-right"></i>
                 </a>
             </div>
@@ -453,9 +476,16 @@
                             <tr>
                                 @foreach($week as $day)
                                     <td class="{{ !$day['is_current_month'] ? 'text-muted' : '' }} {{ $day['is_today'] ? 'today text-primary' : '' }} {{ $day['is_selected_week'] && !$day['is_today'] ? 'selected-week' : '' }}">
-                                        <a href="{{ url('/admin/schedules?date=' . $day['date'] . $qs) }}">{{ $day['day'] }}</a>
+                                        <a href="{{ url('/schedules?date=' . $day['date'] . $qs) }}">{{ $day['day'] }}</a>
                                     </td>
                                 @endforeach
+                                
+
+                                @if(count($week) < 7)
+                                    @for($i = 0; $i < (7 - count($week)); $i++)
+                                        <td></td>
+                                    @endfor
+                                @endif
                             </tr>
                         @endforeach
                     </tbody>
@@ -476,14 +506,33 @@
         @foreach($timetable as $timeSlot => $daysRow)
             @foreach($daysRow as $day => $slot)
                 @if($slot['type'] === 'maintenance')
-                    @php $hasMaintenance = true; @endphp
+                    @php
+                        $hasMaintenance = true;
+                        // Safe parse compatible with both string & object data (same logic as main table)
+                        $mPurpose = (is_object($slot['data']) && isset($slot['data']->purpose)) ? $slot['data']->purpose : (is_string($slot['data']) ? $slot['data'] : 'Maintenance');
+                        $mStart = (is_object($slot['data']) && isset($slot['data']->start_time)) ? substr($slot['data']->start_time, 0, 5) : $timeSlot;
+                        $mEnd = (is_object($slot['data']) && isset($slot['data']->end_time)) ? substr($slot['data']->end_time, 0, 5) : '';
+                    @endphp
                     <div class="mb-2 pb-1 border-bottom">
-                        <strong class="d-block text-danger">{{ $slot['data']->purpose ?? 'Maintenance' }}</strong>
+                        <strong class="d-block text-danger">{{ $mPurpose }}</strong>
                         <span class="d-block text-muted">
                             {{ $weekDates[$day]['date'] ?? $day }} | 
-                            {{ substr($slot['data']->start_time, 0, 5) }} - {{ substr($slot['data']->end_time, 0, 5) }}
+                            {{ $mStart }}@if($mEnd) - {{ $mEnd }}@endif
                         </span>
-                        <a href="{{ url('/admin/schedules/' . $slot['schedule_id'] . '/edit') }}" class="text-primary font-weight-bold">Edit</a>
+                        @if(!empty($slot['schedule_id']))
+                            <div class="d-flex align-items-center mt-1">
+                                @auth @if(in_array((int)auth()->user()->user_role, [1, 2]))
+                                <a href="{{ url('/schedules/' . $slot['schedule_id'] . '/edit') }}" class="btn btn-xs btn-outline-primary mr-2 py-0 px-1">Edit</a>
+                                <form action="{{ url('/schedules/' . $slot['schedule_id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this maintenance? This will clear it from both schedule and booking logs.');" style="display:inline;">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-xs btn-outline-danger py-0 px-1">
+                                        <i class="fas fa-trash-alt"></i> Delete
+                                    </button>
+                                </form>
+                                @endif @endauth
+                            </div>
+                        @endif
                     </div>
                 @endif
             @endforeach

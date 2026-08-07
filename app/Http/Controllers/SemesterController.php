@@ -28,7 +28,7 @@ class SemesterController extends Controller
 
         Semester::create($request->only(['name', 'start_date', 'end_date']));
 
-        return redirect('/admin/semesters')->with('status', 'Semester created successfully.');
+        return redirect('/management/semesters')->with('status', 'Semester created successfully.');
     }
 
     public function edit(Semester $semester)
@@ -46,13 +46,13 @@ class SemesterController extends Controller
 
         $semester->update($request->only(['name', 'start_date', 'end_date']));
 
-        return redirect('/admin/semesters')->with('status', 'Semester updated successfully.');
+        return redirect('/management/semesters')->with('status', 'Semester updated successfully.');
     }
 
     public function destroy(Semester $semester)
     {
         $semester->delete();
 
-        return redirect('/admin/semesters')->with('status', 'Semester deleted successfully.');
+        return redirect('/management/semesters')->with('status', 'Semester deleted successfully.');
     }
 }

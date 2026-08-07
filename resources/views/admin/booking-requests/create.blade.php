@@ -5,7 +5,7 @@
 @section('breadcrumb', 'New Request')
 
 @section('content')
-{{-- 注入原本表单最完美的自定义高颜值样式 --}}
+
 <style>
     .request-card {
         background: #ffffff;
@@ -119,7 +119,6 @@
             </div>
         @endif
 
-        {{-- Form 核心卡片 --}}
         <div class="request-card">
             <div class="card-head">
                 <div class="card-head-icon"><i class="fas fa-file-alt"></i></div>
@@ -129,8 +128,7 @@
                 </div>
             </div>
 
-            {{-- 统一指引向后台的 store 方法 --}}
-            <form action="{{ url('/admin/booking-requests') }}" method="POST" class="p-4" id="bookingForm">
+            <form action="{{ url('/booking-requests') }}" method="POST" class="p-4" id="bookingForm">
                 @csrf
 
                 {{-- ── Section: Booking Details ── --}}
@@ -151,7 +149,7 @@
                         @enderror
                     </div>
                     
-                    {{-- 初始移除了硬编码的 disabled，靠 JS 优雅管控开关 --}}
+
                     <div class="col-md-6 form-group">
                         <label class="form-label font-weight-bold" for="date">Date <span class="text-danger">*</span></label>
                         <input type="date" name="date" id="date"
@@ -219,7 +217,7 @@
                     <button type="submit" class="btn btn-submit shadow-sm" id="submitBtn">
                         <i class="fas fa-paper-plane me-2"></i>Submit Request
                     </button>
-                    <a href="{{ url('/admin/booking-requests') }}" class="btn btn-link text-secondary ml-2">Cancel</a>
+                    <a href="{{ url('/booking-requests') }}" class="btn btn-link text-secondary ml-2">Cancel</a>
                 </div>
             </form>
         </div>
@@ -236,7 +234,7 @@
 @endsection
 
 @push('scripts')
-{{-- 确保引入高版本稳定 jQuery --}}
+
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
 $(function () {
@@ -251,7 +249,6 @@ $(function () {
     const START_HOURS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00'];
     const END_HOURS   = ['09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
 
-    // 完美复刻初始化：打上必要的位置标签
     function tagSelectOptions() {
         $startSelect.find('option').not(':first').each(function() { $(this).attr('data-hour', $(this).val()); });
         $endSelect.find('option').not(':first').each(function() { $(this).attr('data-hour', $(this).val()); });
@@ -322,7 +319,6 @@ $(function () {
         $summary.empty();
     }
 
-    // 动态管控状态机：防止提前乱点
     function evaluateFormState() {
         if ($labSelect.val()) {
             $dateInput.prop('disabled', false);
@@ -347,8 +343,8 @@ $(function () {
         $summary.empty();
 
         $.ajax({
-            // 💡 关键修复：这里的路径强制和你的新后台 Controller 保持一致！
-            url: "{{ url('/admin/booking-requests/check-availability') }}",
+
+            url: "{{ url('/booking-requests/check-availability') }}",
             method: 'GET',
             data: { lab_id: $labSelect.val(), date: $dateInput.val() },
             headers: { 'X-CSRF-TOKEN': CSRF_TOKEN },
@@ -368,7 +364,6 @@ $(function () {
         });
     }
 
-    // ── 流程启动 ──
     tagSelectOptions();
     evaluateFormState();
 

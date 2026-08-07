@@ -11,7 +11,7 @@
             <div class="card-header">
                 <h3 class="card-title"><i class="fas fa-calendar-plus mr-2"></i>New Booking Request</h3>
             </div>
-            <form action="{{ url('/admin/bookings') }}" method="POST">
+            <form action="{{ url('/bookings') }}" method="POST">
                 @csrf
                 <div class="card-body">
                     <div class="row">
@@ -73,7 +73,7 @@
                 </div>
                 <div class="card-footer">
                     <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1"></i> Submit Request</button>
-                    <a href="{{ url('/admin/bookings') }}" class="btn btn-secondary float-right"><i class="fas fa-times mr-1"></i> Cancel</a>
+                    <a href="{{ url('/bookings') }}" class="btn btn-secondary float-right"><i class="fas fa-times mr-1"></i> Cancel</a>
                 </div>
             </form>
         </div>

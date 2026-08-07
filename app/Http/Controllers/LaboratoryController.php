@@ -48,7 +48,7 @@ class LaboratoryController extends Controller
             'capacity' => $request->input('capacity'),
         ]);
 
-        return redirect('/admin/laboratories')->with('status', 'Laboratory created successfully.');
+        return redirect('/laboratories')->with('status', 'Laboratory created successfully.');
     }
 
     public function edit(Laboratory $laboratory)
@@ -75,13 +75,13 @@ class LaboratoryController extends Controller
             'capacity' => $request->input('capacity'),
         ]);
 
-        return redirect('/admin/laboratories')->with('status', 'Laboratory updated successfully.');
+        return redirect('/laboratories')->with('status', 'Laboratory updated successfully.');
     }
 
     public function destroy(Laboratory $laboratory)
     {
         $laboratory->delete();
 
-        return redirect('/admin/laboratories')->with('status', 'Laboratory deleted successfully.');
+        return redirect('/laboratories')->with('status', 'Laboratory deleted successfully.');
     }
 }

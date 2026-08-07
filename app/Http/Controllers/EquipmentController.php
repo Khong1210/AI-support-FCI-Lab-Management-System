@@ -56,7 +56,7 @@ class EquipmentController extends Controller
 
         Equipment::create($request->only(['lab_id', 'equipment_name', 'serial_number', 'type', 'purchase_date', 'status']));
 
-        return redirect('/admin/equipment')->with('status', 'Equipment created successfully.');
+        return redirect('/equipment')->with('status', 'Equipment created successfully.');
     }
 
     public function edit(Equipment $equipment)
@@ -81,13 +81,13 @@ class EquipmentController extends Controller
 
         $equipment->update($request->only(['lab_id', 'equipment_name', 'serial_number', 'type', 'purchase_date', 'status']));
 
-        return redirect('/admin/equipment')->with('status', 'Equipment updated successfully.');
+        return redirect('/equipment')->with('status', 'Equipment updated successfully.');
     }
 
     public function destroy(Equipment $equipment)
     {
         $equipment->delete();
 
-        return redirect('/admin/equipment')->with('status', 'Equipment deleted successfully.');
+        return redirect('/equipment')->with('status', 'Equipment deleted successfully.');
     }
 }

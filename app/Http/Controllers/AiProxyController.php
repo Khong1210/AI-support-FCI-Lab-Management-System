@@ -10,6 +10,7 @@ class AiProxyController extends Controller
 {
     public function generate(Request $request)
     {
+        return response("Controller 真的有讀到最新修改！", 200)->header('Content-Type', 'text/plain');
         $candidates = [
             env('GOOGLE_AI_KEY'),
             env('GEMINI_API_KEY'),
@@ -50,10 +51,17 @@ class AiProxyController extends Controller
         $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
         try {
-            $resp = Http::withOptions(['verify' => false])->withHeaders([
+
+            $resp = Http::withoutVerifying()
+           ->withOptions([
+                'verify' => false,
+                'timeout' => 30,
+            ])
+            ->withHeaders([
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
-            ])->post($url, $body);
+            ])
+            ->post($url, $body);
 
             if (!$resp->successful()) {
                 Log::warning('AI proxy non-200 response', ['status' => $resp->status(), 'body' => $resp->body()]);
@@ -67,7 +75,6 @@ class AiProxyController extends Controller
                     $extracted = $respJson['candidates'][0]['content']['parts'][0]['text'];
                 }
 
-                // 備用路徑提取
                 if ($extracted === null && !empty($respJson['output']['text'] ?? null)) {
                     $extracted = $respJson['output']['text'];
                 }

@@ -80,6 +80,12 @@
         </div>
         
         <div class="login-body">
+            @if(session('status'))
+                <div class="alert alert-success" style="font-size: 0.85rem; padding: 0.75rem;">
+                    <i class="fas fa-check-circle me-1"></i> {{ session('status') }}
+                </div>
+            @endif
+
             @if($errors->any())
                 <div class="alert alert-danger" style="font-size: 0.85rem; padding: 0.75rem;">
                     <ul class="mb-0 ps-3">
@@ -109,7 +115,9 @@
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                 
+                    <a href="{{ route('password.forgot') }}" class="text-decoration-none small text-muted">
+                        Forgot Password?
+                    </a>
                 </div>
 
                 <button type="submit" class="btn btn-login">
@@ -120,4 +128,3 @@
     </div>
 
 </body>
-</html>

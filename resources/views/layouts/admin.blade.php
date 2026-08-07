@@ -313,52 +313,52 @@
                 <li class="custom-sidebar-divider" data-title="Management">Management</li>
                 @if($user && in_array((int)$user->user_role, [1, 2]))
                     <li class="nav-item">
-                        <a href="{{ url('/admin/users') }}" class="nav-link {{ request()->is('admin/users*') ? 'active' : '' }}">
+                        <a href="{{ url('/management/users') }}" class="nav-link {{ request()->is('management/users*') ? 'active' : '' }}">
                             <div class="nav-icon-box"><i class="fas fa-users"></i></div>
                             <p>Users</p>
                         </a>
                     </li>
                 @endif
                 <li class="nav-item">
-                    <a href="{{ url('/admin/equipment') }}" class="nav-link {{ request()->is('admin/equipment*') ? 'active' : '' }}">
+                    <a href="{{ url('/equipment') }}" class="nav-link {{ request()->is('equipment*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-desktop"></i></div>
                         <p>Equipment</p>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/admin/software') }}" class="nav-link {{ request()->is('admin/software*') ? 'active' : '' }}">
+                    <a href="{{ url('/software') }}" class="nav-link {{ request()->is('software') && !request()->is('software/*') ? 'active' : (request()->is('software/edit*') || request()->is('software/add*') || request()->is('software/create*') ? 'active' : '') }}">
                         <div class="nav-icon-box"><i class="fas fa-cube"></i></div>
                         <p>Software</p>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/admin/laboratories') }}" class="nav-link {{ request()->is('admin/laboratories*') ? 'active' : '' }}">
+                    <a href="{{ url('/laboratories') }}" class="nav-link {{ request()->is('laboratories*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-flask-vial"></i></div>
                         <p>Laboratories</p>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/admin/courses') }}" class="nav-link {{ request()->is('admin/courses*') ? 'active' : '' }}">
+                    <a href="{{ url('/management/courses') }}" class="nav-link {{ request()->is('management/courses*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-book"></i></div>
                         <p>Courses</p>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/admin/semesters') }}" class="nav-link {{ request()->is('admin/semesters*') ? 'active' : '' }}">
+                    <a href="{{ url('/management/semesters') }}" class="nav-link {{ request()->is('management/semesters*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-calendar-alt"></i></div>
                         <p>Semesters</p>
                     </a>
                 </li>
-                 @if(in_array((int)$user->user_role, [1, 2]))
+                {{-- @if(in_array((int)$user->user_role, [1, 2]))
                 <li class="nav-item">
-                    <a href="{{ url('/admin/bookings') }}" class="nav-link {{ request()->is('admin/bookings') || request()->is('admin/bookings/*') ? 'active' : '' }}">
+                    <a href="{{ url('/bookings') }}" class="nav-link {{ request()->is('bookings') || request()->is('bookings/*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-calendar-check"></i></div>
                         <p>Bookings</p>
                     </a>
-                @endif
                 </li>
+                @endif --}}
                 <li class="nav-item">
-                    <a href="{{ url('/admin/booking-requests') }}" class="nav-link {{ request()->is('admin/booking-requests*') ? 'active' : '' }}">
+                    <a href="{{ url('/booking-requests') }}" class="nav-link {{ request()->is('booking-requests*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>
                         <p>
                             Booking Requests
@@ -382,9 +382,36 @@
                     </a>
                 </li>
 
+                {{-- Software Requests & Approvals (Admin, Faculty Manager, Lab Staff, Lab Committee only) --}}
+                
+                <li class="nav-item">
+                    <a href="{{ route('software-requests.create') }}" class="nav-link {{ request()->is('software-requests/create') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-paper-plane"></i></div>
+                        <p>Software Request</p>
+                    </a>
+                </li>
+                @if(in_array((int)$user->user_role, [1, 2, 3, 4, 5]))
+                <li class="nav-item">
+                    <a href="{{ route('software-requests.index') }}" class="nav-link {{ request()->is('software-requests') && !request()->is('software-requests/create') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-clipboard-check"></i></div>
+                        <p>
+                            Software Approval
+                            @php
+                                $pendingSwCount = \App\Models\SoftwareRequest::where('status', 1)->count();
+                            @endphp
+                            @if($pendingSwCount > 0 && in_array((int)$user->user_role, [1, 2, 3, 4]))
+                                <span style="background:#ef4444; color:#fff; border-radius:999px; font-size:10px; padding:1px 7px; margin-left:6px; font-weight:700;">
+                                    {{ $pendingSwCount }}
+                                </span>
+                            @endif
+                        </p>
+                    </a>
+                </li>
+                @endif
+
                 <li class="custom-sidebar-divider" data-title="Reports & Analytics">Reports & Analytics</li>
-               <li class="nav-item">
-                    <a href="{{ url('/admin/reports') }}" class="nav-link {{ request()->is('admin/reports*') ? 'active' : '' }}">
+                <li class="nav-item">
+                    <a href="{{ url('/reports') }}" class="nav-link {{ request()->is('reports*') ? 'active' : '' }}">
                         <div class="nav-icon-box" style="position: relative;">
                         <i class="fas fa-file-pdf"></i></div>
                         <p>Reports
@@ -421,7 +448,7 @@
 
                                         // 4. If the user is currently looking at the reports index page,
                                         // save all live statuses to the session to clear the red dot for the next page reload.
-                                        if (request()->is('admin/reports*')) {
+                                        if (request()->is('reports*')) {
                                             foreach ($myReports as $report) {
                                                 $seenStatuses[$report->id] = $report->status;
                                             }
@@ -441,13 +468,21 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url('/admin/schedules') }}" class="nav-link {{ request()->is('admin/schedules*') ? 'active' : '' }}">
-                        <div class="nav-icon-box"><i class="fas fa-clock"></i></div>
-                        <p>Schedules</p>
+                    <a href="{{ url('/schedules') }}" class="nav-link {{ request()->is('schedules*') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-magic"></i></div>
+                        <p>Schedule</p>
                     </a>
                 </li>
+                @if(in_array((int)$user->user_role, [1, 2]))
                 <li class="nav-item">
-                    <a href="{{ url('/admin/mail') }}" class="nav-link {{ request()->is('admin/mail*') ? 'active' : '' }}">
+                    <a href="{{ url('/ai-scheduler') }}" class="nav-link {{ request()->is('ai-scheduler*') ? 'active' : '' }}">
+                        <div class="nav-icon-box"><i class="fas fa-robot"></i></div>
+                        <p>AI Schedule</p>
+                    </a>
+                </li>
+                @endif
+                <li class="nav-item">
+                    <a href="{{ url('/management/mail') }}" class="nav-link {{ request()->is('management/mail*') ? 'active' : '' }}">
                         <div class="nav-icon-box"><i class="fas fa-inbox"></i></div>
                         <p>
                             Mail / Inbox
@@ -475,7 +510,7 @@
             <div class="footer-divider"></div>
             
             <div class="footer-btns">
-                <a href="#" class="footer-btn" title="Settings">
+                <a href="{{ route('password.renew') }}" class="footer-btn" title="Settings">
                     <i class="fas fa-cog"></i>
                     <span>Settings</span>
                 </a>
@@ -505,12 +540,12 @@
                 </ul>
                 <ul class="flex items-center space-x-4 ml-auto">
                     <li>
-                        <a href="{{ url('/admin/semesters') }}" class="text-gray-600 hover:text-blue-600 flex items-center">
+                        <a href="{{ url('/management/semesters') }}" class="text-gray-600 hover:text-blue-600 flex items-center">
                             <i class="fas fa-calendar-alt mr-1"></i> Semesters
                         </a>
                     </li>
                     <li>
-                        <a href="{{ url('/admin/mail') }}" class="text-gray-600 hover:text-blue-600 flex items-center">
+                        <a href="{{ url('/management/mail') }}" class="text-gray-600 hover:text-blue-600 flex items-center">
                             <i class="fas fa-inbox mr-1"></i> Mail
                         </a>
                     </li>
@@ -590,7 +625,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 🌟 全域單擊事件：控制絲滑折疊切換
     document.addEventListener('click', function(e) {
         const pushmenu = e.target.closest('[data-widget="pushmenu"]');
         if (pushmenu) {

@@ -23,6 +23,8 @@ class DatabaseSeeder extends Seeder
             CourseSeeder::class,
             EquipmentSeeder::class,
             SoftwareSeeder::class,
+            BookingTableSeeder::class,
+            ScheduleTableSeeder::class,
         ]);
     }
 }

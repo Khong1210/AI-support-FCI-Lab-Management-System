@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 
-
 class BookingRequestController extends Controller
 {
     // -------------------------------------------------------------------------
@@ -49,7 +48,23 @@ class BookingRequestController extends Controller
             'reason'     => 'required|string|max:1000',
         ]);
 
-        // 3. Persist the database entity bound to the authenticated user session context
+        // 3. Conflict check against existing schedules
+        $conflictingSchedule = $this->findConflictingSchedule(
+            $request->input('lab_id'),
+            $request->input('date'),
+            $request->input('start_time') . ':00',
+            $request->input('end_time') . ':00'
+        );
+
+        if ($conflictingSchedule) {
+            $start = substr($conflictingSchedule->start_time, 0, 5);
+            $end   = substr($conflictingSchedule->end_time, 0, 5);
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['date' => "This time slot overlaps an existing schedule from {$start} to {$end}. Please choose a different time."]);
+        }
+
+        // 4. Persist the database entity bound to the authenticated user session context
         BookingRequest::create([
             'user_id'    => Auth::id(),
             'lab_id'     => $request->input('lab_id'),
@@ -60,7 +75,7 @@ class BookingRequestController extends Controller
             'status'     => 'pending',
         ]);
 
-        return redirect('/admin/booking-requests')
+        return redirect('/booking-requests')
             ->with('success', 'Your booking request has been submitted successfully! The lab administrator will review it shortly.');
     }
 
@@ -102,35 +117,32 @@ class BookingRequestController extends Controller
     // 1. Blocked by Schedules (regular classes + admin-created bookings/maintenance)
     $scheduleSlots = \App\Models\Schedule::where('lab_id', $labId)
         ->where(function ($q) use ($dayOfWeek, $date, $semesterId) {
-            // 条件 a: 单次单天事件（必须匹配精确日期）
+
             $q->where(function ($sub) use ($date) {
                 $sub->where('is_recurring', false)
                     ->whereDate('date', $date);
             })
-            // 条件 b: 循环课（匹配星期几）
+
             ->orWhere(function ($sub) use ($dayOfWeek, $semesterId) {
                 $sub->where('is_recurring', true)
                     ->where('day_of_week', $dayOfWeek);
                 
-                // 如果系统内能查到当前处于哪个学期，则同时校验学期匹配
-                // 如果查不到或数据库没绑定，为了安全起见（防止漏掉课表），可以通过可选逻辑进行限制
+
                 if ($semesterId) {
                     $sub->where(function($inner) use ($semesterId) {
                         $inner->where('semester_id', $semesterId)
-                              ->orWhereNull('semester_id'); // 兼容没有写明学期的全局循环课
+                              ->orWhereNull('semester_id');
                     });
                 }
             });
         })
         ->get(['start_time', 'end_time']);
 
-    // 2. Blocked by Pending Booking Requests (方案A：还没决定的请求也直接视为占用)
     $pendingRequests = \App\Models\BookingRequest::where('lab_id', $labId)
         ->whereDate('date', $date)
         ->where('status', 'pending')
         ->get(['start_time', 'end_time']);
 
-    // 3. 合并数据流并规范化格式
     $occupied = collect();
 
     foreach ($scheduleSlots as $item) {
@@ -147,12 +159,11 @@ class BookingRequestController extends Controller
         ]);
     }
 
-    // 去重并重新排索引，打包成干净的 JSON 返回给前端
     return response()->json($occupied->unique()->values());
 }
 /**
      * Display a filtered listing of booking requests scoped by authorization levels.
-     * Accessible at GET /admin/booking-requests
+     * Accessible at GET /booking-requests
      */
     public function index(Request $request)
     {
@@ -201,14 +212,14 @@ class BookingRequestController extends Controller
      *  3. Create a record in `schedules` (schedule_type='booking', linked to above booking).
      *  4. Mark the booking request as 'approved'.
      *
-     * PUT /admin/booking-requests/{id}/approve
+     * PUT /booking-requests/{id}/approve
      */
     public function approve(int $id)
     {
         $bookingRequest = BookingRequest::findOrFail($id);
 
         if ($bookingRequest->status !== 'pending') {
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('error', 'This request has already been processed.');
         }
 
@@ -223,6 +234,22 @@ class BookingRequestController extends Controller
                                 ->whereDate('end_date', '>=', $date)
                                 ->first();
             $semesterId = $semester?->id;
+
+            // ── Conflict check ─────────────────────────────────────────
+            $conflictingSchedule = $this->findConflictingSchedule(
+                $bookingRequest->lab_id,
+                $date,
+                $bookingRequest->start_time,
+                $bookingRequest->end_time
+            );
+
+            if ($conflictingSchedule) {
+                DB::rollBack();
+                $start = substr($conflictingSchedule->start_time, 0, 5);
+                $end   = substr($conflictingSchedule->end_time, 0, 5);
+                return redirect('/booking-requests')
+                    ->with('error', "Cannot approve — this overlaps an existing schedule from {$start} to {$end}.");
+            }
 
             // ── Create Booking record ─────────────────────────────────────────
             
@@ -263,7 +290,7 @@ class BookingRequestController extends Controller
 
             SystemMail::create([
                 'user_id' => $userId,
-                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Approved',
+                'subject' => '[FCI manager] Your Lab Booking Request Has Been Approved 🟢',
                 'body'    => "Your request for {$labName} on {$dateFormatted} ({$timeFormatted}) has been Approved.",
                 'is_read' => false,
                 'type'    => 'booking_status',
@@ -271,16 +298,61 @@ class BookingRequestController extends Controller
 
             DB::commit();
 
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('status', "Booking request #{$bookingRequest->id} has been approved and scheduled successfully.");
 
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('❌ [BookingRequest] Failed to approve request #' . $id . ': ' . $e->getMessage());
 
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('error', 'Failed to approve request: ' . $e->getMessage());
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // PRIVATE — Conflict Detection Helper
+    // -------------------------------------------------------------------------
+
+    /**
+     * Find a schedule that conflicts with the given time range.
+     * Checks both non-recurring (exact date) and recurring (day-of-week + semester) schedules.
+     *
+     * @param  int    $labId
+     * @param  string $date       Y-m-d
+     * @param  string $startTime  H:i:s
+     * @param  string $endTime    H:i:s
+     * @return Schedule|null
+     */
+    private function findConflictingSchedule($labId, $date, $startTime, $endTime)
+    {
+        $dayOfWeek = Carbon::parse($date)->format('l');
+
+        $semester = Semester::whereDate('start_date', '<=', $date)
+                            ->whereDate('end_date', '>=', $date)
+                            ->first();
+        $semesterId = $semester?->id;
+
+        return Schedule::where('lab_id', $labId)
+            ->where(function ($q) use ($date, $dayOfWeek, $semesterId) {
+                $q->where(function ($sub) use ($date) {
+                    $sub->where('is_recurring', false)
+                        ->whereDate('date', $date);
+                })
+                ->orWhere(function ($sub) use ($dayOfWeek, $semesterId) {
+                    $sub->where('is_recurring', true)
+                        ->where('day_of_week', $dayOfWeek);
+                    if ($semesterId) {
+                        $sub->where(function ($inner) use ($semesterId) {
+                            $inner->where('semester_id', $semesterId)
+                                  ->orWhereNull('semester_id');
+                        });
+                    }
+                });
+            })
+            ->where('start_time', '<', $endTime)
+            ->where('end_time', '>', $startTime)
+            ->first();
     }
 
     // -------------------------------------------------------------------------
@@ -294,7 +366,7 @@ class BookingRequestController extends Controller
      *  1. Mark the booking request as 'rejected'.
      *  2. Generate a record in `system_mails`.
      *
-     * PUT /admin/booking-requests/{id}/reject
+     * PUT /booking-requests/{id}/reject
      */
     public function reject(Request $request, int $id)
     {
@@ -304,7 +376,7 @@ class BookingRequestController extends Controller
 
             // 2. Normalize status checks using lowercase conversions to prevent execution mismatches
             if (strtolower($bookingRequest->status) !== 'pending') {
-                return redirect('/admin/booking-requests')
+                return redirect('/booking-requests')
                     ->with('error', 'This request has already been processed (Current status: ' . $bookingRequest->status . ').');
             }
 
@@ -340,13 +412,13 @@ class BookingRequestController extends Controller
             // 7. Dispatch the system communication mail to the isolated recipient index
             SystemMail::create([
                 'user_id' => $userId,
-                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected',
+                'subject' => '[FCI Lab] Your Lab Booking Request Has Been Rejected 🔴',
                 'body'    => $body,
                 'is_read' => false,
                 'type'    => 'booking_status',
             ]);
 
-            return redirect('/admin/booking-requests')
+            return redirect('/booking-requests')
                 ->with('status', "Booking request #{$bookingRequest->id} has been rejected successfully.");
 
         } catch (\Exception $e) {

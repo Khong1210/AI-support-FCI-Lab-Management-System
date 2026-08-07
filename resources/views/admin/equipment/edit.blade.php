@@ -10,7 +10,7 @@
             <h3 class="card-title">Edit Equipment</h3>
         </div>
         <div class="card-body">
-            <form action="{{ url('/admin/equipment/' . $equipment->id) }}" method="POST">
+            <form action="{{ url('/equipment/' . $equipment->id) }}" method="POST">
                 @csrf
                 @method('PUT')
                 <div class="form-group">
@@ -54,7 +54,7 @@
                     @error('status')<span class="invalid-feedback">{{ $message }}</span>@enderror
                 </div>
                 <button class="btn btn-success">Update Equipment</button>
-                <a href="{{ url('/admin/equipment') }}" class="btn btn-secondary">Cancel</a>
+                <a href="{{ url('/equipment') }}" class="btn btn-secondary">Cancel</a>
             </form>
         </div>
     </div>
